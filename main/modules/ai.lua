@@ -33,6 +33,16 @@ local function score_swap(b, m, enemy, difficulty)
 		if grp.spawn and difficulty >= 2 then
 			score = score + 18
 		end
+		if difficulty >= 2 and enemy.squads then
+			for _, sq in pairs(enemy.squads) do
+				if sq.runes and sq.rune_filled then
+					if (not sq.rune_filled[1] and sq.runes[1] == grp.color) or (not sq.rune_filled[2] and sq.runes[2] == grp.color) then
+						local ready_now = (sq.rune_filled[1] or sq.rune_filled[2])
+						score = score + (ready_now and 24 or 10)
+					end
+				end
+			end
+		end
 	end
 	return score
 end

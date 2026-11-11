@@ -42,8 +42,9 @@ M.CHESTS = {
 		gold_max = 55,
 		cards_min = 2,
 		cards_max = 4,
-		rare_chance = 0.20,
-		epic_chance = 0.03,
+		rare_chance = 0.22,
+		epic_chance = 0.04,
+		legendary_chance = 0.005,
 		sprite = "chest_wood",
 	},
 	silver = {
@@ -53,8 +54,9 @@ M.CHESTS = {
 		gold_max = 145,
 		cards_min = 6,
 		cards_max = 9,
-		rare_chance = 0.55,
-		epic_chance = 0.12,
+		rare_chance = 0.50,
+		epic_chance = 0.16,
+		legendary_chance = 0.03,
 		sprite = "chest_silver",
 	},
 	royal = {
@@ -64,28 +66,32 @@ M.CHESTS = {
 		gold_max = 420,
 		cards_min = 14,
 		cards_max = 20,
-		rare_chance = 0.85,
-		epic_chance = 0.45,
+		rare_chance = 0.50,
+		epic_chance = 0.36,
+		legendary_chance = 0.14,
 		sprite = "chest_royal",
 	},
 }
 
 -- Clash Royale style upgrade requirements by level (level -> next)
 M.CARD_REQ = {
-	common = { 2, 4, 10, 20, 40, 80, 150, 300, 500 },
-	rare   = { 2, 4, 8, 16, 30, 60, 120, 200, 350 },
-	epic   = { 1, 2, 4, 8, 15, 30, 60, 100, 200 },
+	common    = { 2, 4, 10, 20, 40, 80, 150, 300, 500 },
+	rare      = { 2, 4, 8, 16, 30, 60, 120, 200, 350 },
+	epic      = { 1, 2, 4, 8, 15, 30, 60, 100, 200 },
+	legendary = { 1, 2, 4, 8, 12, 20, 35, 50 },
 }
 M.CARD_GOLD = {
-	common = { 25, 60, 130, 260, 500, 900, 1600, 2800, 4500 },
-	rare   = { 45, 110, 230, 450, 850, 1500, 2600, 4200, 6500 },
-	epic   = { 90, 200, 420, 800, 1500, 2600, 4400, 7000, 10000 },
+	common    = { 25, 60, 130, 260, 500, 900, 1600, 2800, 4500 },
+	rare      = { 45, 110, 230, 450, 850, 1500, 2600, 4200, 6500 },
+	epic      = { 90, 200, 420, 800, 1500, 2600, 4400, 7000, 10000 },
+	legendary = { 150, 350, 750, 1400, 2600, 4500, 7500, 12000 },
 }
 
 M.UNLOCK_DIAMONDS = {
 	common = 15,
 	rare = 35,
 	epic = 80,
+	legendary = 150,
 }
 
 M.BOOSTERS = {

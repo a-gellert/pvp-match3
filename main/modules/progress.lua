@@ -223,7 +223,10 @@ function M.open_chest(slot, rush_diamonds)
 	local drops = {}
 	for _ = 1, total_cards do
 		local roll = r:float()
-		local rar = roll < def.epic_chance and "epic" or (roll < def.epic_chance + def.rare_chance and "rare" or "common")
+		local lc = def.legendary_chance or 0
+		local rar = roll < lc and "legendary"
+			or (roll < lc + def.epic_chance and "epic"
+			or (roll < lc + def.epic_chance + def.rare_chance and "rare" or "common"))
 		local pool = {}
 		for _, sq in ipairs(squads.LIST) do
 			if sq.rarity == rar then pool[#pool + 1] = sq.id end

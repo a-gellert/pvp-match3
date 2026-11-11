@@ -45,6 +45,7 @@ M.RARITY_FRAME = {
 	common = "card_common",
 	rare = "card_rare",
 	epic = "card_epic",
+	legendary = "card_legendary",
 }
 
 M.gen = 0
@@ -287,6 +288,38 @@ function M.fly(n, to_x, to_y, dur, delay, done)
 	delay = delay or 0
 	gui.animate(n, "position.x", to_x, gui.EASING_INOUTSINE, dur, delay)
 	gui.animate(n, "position.y", to_y, gui.EASING_OUTQUAD, dur, delay, done and function() done() end or nil)
+end
+
+function M.flash_hit(n, col)
+	if not n then return end
+	gui.cancel_animations(n, "color")
+	gui.set_color(n, col or M.RED)
+	gui.animate(n, "color", M.WHITE, gui.EASING_OUTQUAD, 0.22)
+end
+
+function M.puff(parent, x, y, color, size)
+	local s = size or 28
+	local n = M.box(parent, "puff", x, y, s, s, color or vmath.vector4(0.85, 0.85, 0.92, 0.55))
+	gui.animate(n, "size", V3(s * 1.9, s * 1.9, 0), gui.EASING_OUTQUAD, 0.26)
+	gui.animate(n, "color.w", 0, gui.EASING_INQUAD, 0.26, 0, function() gui.delete_node(n) end)
+end
+
+function M.spark_dot(parent, x, y, color, size, dur)
+	local s = size or 16
+	local n = M.glow(M.box(parent, "glow", x, y, s, s, color or M.GOLD))
+	gui.animate(n, "size", V3(4, 4, 0), gui.EASING_INQUAD, dur or 0.22)
+	gui.animate(n, "color.w", 0, gui.EASING_INQUAD, dur or 0.22, 0, function() gui.delete_node(n) end)
+end
+
+function M.shake_xy(n, amp)
+	if not n then return end
+	amp = amp or 7
+	gui.cancel_animations(n, "position")
+	gui.set_position(n, V3(math.random(-amp, amp), math.random(-amp, amp), 0))
+	M.after(0.04, function()
+		gui.set_position(n, V3(math.random(-math.floor(amp * 0.6), math.floor(amp * 0.6)), math.random(-math.floor(amp * 0.6), math.floor(amp * 0.6)), 0))
+		gui.animate(n, "position", V3(0, 0, 0), gui.EASING_OUTQUAD, 0.12)
+	end)
 end
 
 return M

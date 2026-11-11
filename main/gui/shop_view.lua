@@ -1,4 +1,4 @@
--- Shop Screen: Buy locked Squad Cards with Diamonds, buy Boosters with Gold.
+-- Shop Screen: Browse & Unlock any of the 18 Squad Cards with Diamonds, buy Boosters with Gold.
 local ui = require "main.gui.ui"
 local config = require "main.modules.config"
 local squads = require "main.modules.squads"
@@ -6,7 +6,11 @@ local progress = require "main.modules.progress"
 local i18n = require "main.modules.i18n"
 local audio = require "main.modules.audio"
 
-local M = {}
+local M = { page = 1 }
+
+local GEM_SPRITE = {
+	red = "gem_red", yellow = "gem_yellow", purple = "gem_purple", green = "gem_green", blue = "gem_blue",
+}
 
 function M.build(app, parent)
 	local root = ui.pane(parent, 0, 0)
@@ -22,33 +26,54 @@ function M.build(app, parent)
 	ui.currency_pill(root, "icon_gold", d.gold, vw - 270, vh - 46, 154, 48)
 	ui.currency_pill(root, "icon_diamond", d.diamonds, vw - 102, vh - 46, 154, 48)
 
-	-- Locked Cards for Diamonds
+	-- Locked Cards for Diamonds (paged cleanly by 3 across all 18 squads)
 	local locked = {}
 	for _, sq in ipairs(squads.LIST) do
 		if not d.cards[sq.id].unlocked then locked[#locked + 1] = sq end
 	end
 
+	local pages = math.max(1, math.ceil(#locked / 3))
+	if M.page > pages then M.page = pages end
+
 	local y_cards = vh - 265
 	ui.text(root, i18n.t("COLLECTION"), vw / 2, y_cards + 106, 22, ui.DIAMOND)
-	local shown = math.min(3, #locked)
-	if shown == 0 then
+	if #locked == 0 then
 		ui.text(root, i18n.t("MAX"), vw / 2, y_cards, 22, ui.GREEN)
 	else
-		for i = 1, shown do
-			local sq = locked[i]
+		local first = (M.page - 1) * 3 + 1
+		local last = math.min(#locked, first + 2)
+		local shown = last - first + 1
+		for idx = first, last do
+			local i = idx - first + 1
+			local sq = locked[idx]
 			local cx = vw / 2 + (i - (shown + 1) / 2) * 224
-			local card = ui.slice(root, ui.RARITY_FRAME[sq.rarity], cx, y_cards - 30, 206, 220, ui.WHITE, 20)
-			ui.icon(card, sq.sprite, 0, 32, 92)
+			local card = ui.slice(root, ui.RARITY_FRAME[sq.rarity], cx, y_cards - 30, 206, 224, ui.WHITE, 20)
+			ui.box(card, GEM_SPRITE[sq.color], -80, 88, 22, 22)
+			if sq.runes then
+				ui.box(card, GEM_SPRITE[sq.runes[1]], 56, 88, 16, 16)
+				ui.box(card, GEM_SPRITE[sq.runes[2]], 74, 88, 16, 16)
+			end
+			ui.icon(card, sq.sprite, 0, 30, 88)
 			local nm = ui.text(card, i18n.t("SQ_" .. sq.id), 0, -28, 17, ui.BONE)
 			ui.fit(nm, 184, 17)
 			local d_cost = squads.unlock_diamonds(sq.id)
-			ui.btn(card, "btn_purple", 0, -74, 176, 46, i18n.t("BUY_CARD", { d = d_cost }), 17, function()
+			ui.btn(card, "btn_purple", 0, -76, 176, 46, i18n.t("BUY_CARD", { d = d_cost }), 17, function()
 				if progress.buy_locked_card(sq.id) then
 					audio.play("upgrade")
 					app.rebuild()
 				else
 					ui.float_text(root, i18n.t("MISS_RES"), cx, y_cards + 40, 20, ui.RED, 40)
 				end
+			end)
+		end
+		if pages > 1 then
+			ui.btn(root, "btn_dark", vw / 2 - 140, y_cards + 106, 44, 34, "<", 20, function()
+				M.page = M.page > 1 and (M.page - 1) or pages
+				app.rebuild()
+			end)
+			ui.btn(root, "btn_dark", vw / 2 + 140, y_cards + 106, 44, 34, ">", 20, function()
+				M.page = M.page < pages and (M.page + 1) or 1
+				app.rebuild()
 			end)
 		end
 	end

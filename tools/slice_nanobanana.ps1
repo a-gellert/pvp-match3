@@ -351,10 +351,11 @@ function Slice-RowAuto($path, $names, $maxW, $maxH) {
 
 function Slice-GridBlack($path, $cols, $rows, $names, $maxW, $maxH) {
     $idx = 0
+    $pad = 0.03
     for ($r = 0; $r -lt $rows; $r++) {
         for ($c = 0; $c -lt $cols; $c++) {
             $name = $names[$idx++]
-            $bmp = [SpriteProcessor]::LoadCrop($path, $c / $cols, $r / $rows, ($c + 1) / $cols, ($r + 1) / $rows)
+            $bmp = [SpriteProcessor]::LoadCrop($path, $c / $cols + $pad, $r / $rows + $pad, ($c + 1) / $cols - $pad, ($r + 1) / $rows - $pad)
             [SpriteProcessor]::KeyBlack($bmp)
             [SpriteProcessor]::SaveTight($bmp, "$ArtDir/$name.png", $maxW, $maxH, $false)
             $bmp.Dispose()
@@ -369,30 +370,42 @@ function Latest($pattern) {
 }
 
 $gems = Latest "match3_crystals_*.jpg"
-if ($gems) { Slice-GridWhite $gems 3 2 @("gem_red","gem_yellow","gem_purple","gem_green","gem_blue","gem_prism") 112 112 $true $true }
+if ($gems) { Slice-GridWhite $gems 3 2 @("gem_red","gem_yellow","gem_purple","gem_green","gem_blue","gem_prism") 104 104 $true $true }
 
 $meds = Latest "fantasy_character_medallions_*.jpg"
-if ($meds) { Slice-GridWhite $meds 3 2 @("face_hero","face_goblin","face_skeleton","face_orc","face_necromancer","face_dragon") 144 144 $true $false }
+if ($meds) { Slice-GridWhite $meds 3 2 @("face_hero","face_goblin","face_skeleton","face_orc","face_necromancer","face_dragon") 128 128 $true $false }
 
 $chests = Latest "fantasy_chests_*.jpg"
-if ($chests) { Slice-GridWhite $chests 3 1 @("chest_wood","chest_silver","chest_royal") 144 144 $true $false }
+if ($chests) { Slice-GridWhite $chests 3 1 @("chest_wood","chest_silver","chest_royal") 128 128 $true $false }
 
 $amber = Latest "amber_squads_*.jpg"
-if ($amber) { Slice-RowAuto $amber @("squad_yellow_archers","squad_yellow_crossbow","squad_yellow_paladin") 176 152 }
+if ($amber) { Slice-RowAuto $amber @("squad_yellow_archers","squad_yellow_crossbow","squad_yellow_paladin") 156 136 }
+
+$amber2 = Latest "amber_gold_squads_*.jpg"
+if ($amber2) { Slice-RowAuto $amber2 @("squad_yellow_falconer","squad_yellow_assassins","squad_yellow_thunder") 156 136 }
 
 $arcane = Latest "arcane_squads_*.jpg"
-if ($arcane) { Slice-RowAuto $arcane @("squad_purple_cultists","squad_purple_necro","squad_purple_golem") 176 152 }
+if ($arcane) { Slice-RowAuto $arcane @("squad_purple_cultists","squad_purple_necro","squad_purple_golem") 156 136 }
+
+$arcane2 = Latest "arcane_purple_squads_*.jpg"
+if ($arcane2) { Slice-RowAuto $arcane2 @("squad_purple_imps","squad_purple_banshee","squad_purple_reaper") 156 136 }
 
 $crimson = Latest "crimson_squads_spritesheet_final_*.jpg"
-if (-not $crimson) { $crimson = Latest "crimson_squads_*.jpg" }
-if ($crimson) { Slice-RowAuto $crimson @("squad_red_militia","squad_red_wolves","squad_red_berserk") 176 152 }
+if ($crimson) { Slice-RowAuto $crimson @("squad_red_militia","squad_red_wolves","squad_red_berserk") 156 136 }
+
+$crimson2 = Latest "crimson_squads_spritesheet_1794401163654.jpg"
+if (-not $crimson2) { $crimson2 = (Get-ChildItem $brain -Filter "crimson_squads_spritesheet_*.jpg" | Where-Object { $_.Name -notlike "*final*" -and $_.Name -notlike "*exact*" } | Sort-Object LastWriteTime -Descending | Select-Object -First 1).FullName }
+if ($crimson2) { Slice-RowAuto $crimson2 @("squad_red_spearmen","squad_red_pyromancer","squad_red_drake") 156 136 }
 
 $vfx = Latest "combat_vfx_*.jpg"
-if ($vfx) { Slice-GridBlack $vfx 2 2 @("proj_arrow","proj_bolt","proj_spell","fx_slash") 120 120 }
+if ($vfx) { Slice-GridBlack $vfx 2 2 @("proj_arrow","proj_bolt","proj_spell","fx_slash") 112 112 }
+
+$vfx2 = Latest "elemental_spells_vfx_*.jpg"
+if ($vfx2) { Slice-GridBlack $vfx2 2 2 @("proj_fire","proj_lightning","proj_venom","fx_reap") 112 112 }
 
 $arena = Latest "arena_backdrop_*.jpg"
 if ($arena) {
-    [SpriteProcessor]::SaveResizedOpaque($arena, "$ArtDir/arena_bg.png", 640, 320)
+    [SpriteProcessor]::SaveResizedOpaque($arena, "$ArtDir/arena_bg.png", 512, 256)
     Write-Host "Saved arena_bg.png"
 }
 

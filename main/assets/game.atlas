@@ -14,6 +14,9 @@ images {
   image: "/main/assets/images/card_epic.png"
 }
 images {
+  image: "/main/assets/images/card_legendary.png"
+}
+images {
   image: "/main/assets/images/btn_gold.png"
 }
 images {
@@ -209,7 +212,22 @@ images {
   image: "/main/assets/images/icon_globe.png"
 }
 images {
+  image: "/main/assets/images/rune_bg.png"
+}
+images {
+  image: "/main/assets/images/icon_burn.png"
+}
+images {
+  image: "/main/assets/images/icon_poison.png"
+}
+images {
+  image: "/main/assets/images/icon_freeze.png"
+}
+images {
   image: "/main/assets/images/arena_bg.png"
+}
+images {
+  image: "/main/assets/images/fx_reap.png"
 }
 images {
   image: "/main/assets/images/fx_slash.png"
@@ -221,7 +239,43 @@ images {
   image: "/main/assets/images/proj_bolt.png"
 }
 images {
+  image: "/main/assets/images/proj_fire.png"
+}
+images {
+  image: "/main/assets/images/proj_lightning.png"
+}
+images {
   image: "/main/assets/images/proj_spell.png"
+}
+images {
+  image: "/main/assets/images/proj_venom.png"
+}
+images {
+  image: "/main/assets/images/squad_purple_banshee.png"
+}
+images {
+  image: "/main/assets/images/squad_purple_imps.png"
+}
+images {
+  image: "/main/assets/images/squad_purple_reaper.png"
+}
+images {
+  image: "/main/assets/images/squad_red_drake.png"
+}
+images {
+  image: "/main/assets/images/squad_red_pyromancer.png"
+}
+images {
+  image: "/main/assets/images/squad_red_spearmen.png"
+}
+images {
+  image: "/main/assets/images/squad_yellow_assassins.png"
+}
+images {
+  image: "/main/assets/images/squad_yellow_falconer.png"
+}
+images {
+  image: "/main/assets/images/squad_yellow_thunder.png"
 }
 margin: 2
 extrude_borders: 2

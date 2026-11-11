@@ -185,13 +185,15 @@ for (const [name, c1, c2, rim] of [
   ['card_common', '#45506b', '#272e40', '#8b99b8'],
   ['card_rare', '#634329', '#2b1f21', '#f09a36'],
   ['card_epic', '#4e2c75', '#211638', '#d273ff'],
+  ['card_legendary', '#1d5a73', '#2d1c4a', '#52f0ff'],
 ]) {
   const c = canvas(96, 96);
   c.outlined(rbox(48, 48, 44, 44, 14), vgrad(H(c1), H(c2), 6, 90), 3);
   c.stroke(rbox(48, 48, 40, 40, 11), H(rim), 3.5);
   c.fill(rbox(48, 48, 35, 35, 8), H('#151926', 0.85));
-  if (name === 'card_epic') {
-    for (const [rx, ry] of [[14, 14], [82, 14], [14, 82], [82, 82]]) c.fill(circle(rx, ry, 4), H('#ffd644'));
+  if (name === 'card_epic' || name === 'card_legendary') {
+    const stud = name === 'card_legendary' ? H('#52f0ff') : H('#ffd644');
+    for (const [rx, ry] of [[14, 14], [82, 14], [14, 82], [82, 82]]) c.fill(circle(rx, ry, 4.2), stud);
   }
   c.save(name);
 }
@@ -727,6 +729,25 @@ function drawWolf(c, cx, cy, s) {
   glb.stroke(ellipse(32, 32, 10, 22), H('#1b3d6e'), 2.5);
   glb.stroke(rbox(32, 32, 22, 1, 0), H('#1b3d6e'), 2.5);
   glb.save('icon_globe');
+
+  const rbg = canvas(48, 48);
+  rbg.outlined(circle(24, 24, 20), H('#121724'), 2.5);
+  rbg.stroke(circle(24, 24, 17), H('#48577a', 0.85), 2);
+  rbg.save('rune_bg');
+
+  const brn = canvas(48, 48);
+  brn.outlined(poly([[24, 5], [38, 25], [32, 41], [24, 43], [16, 41], [10, 25]], 4), vgrad(H('#ffd644'), H('#ff422e'), 6, 42), 2.5);
+  brn.fill(circle(24, 30, 6), H('#fff099'));
+  brn.save('icon_burn');
+
+  const psn = canvas(48, 48);
+  psn.outlined(poly([[24, 7], [37, 27], [33, 40], [24, 43], [15, 40], [11, 27]], 4), vgrad(H('#7bff78'), H('#189e3c'), 8, 42), 2.5);
+  psn.fill(circle(21, 25, 3), H('#c8ffbd'));
+  psn.save('icon_poison');
+
+  const frz = canvas(48, 48);
+  frz.outlined(star(24, 24, 19, 8, 6, 0, 1.5), vgrad(H('#a8f4ff'), H('#2d88ff'), 6, 42), 2.5);
+  frz.save('icon_freeze');
 }
 
 // ======================================================================= IMPORT NANO BANANA ART

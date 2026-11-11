@@ -89,13 +89,15 @@ function M.build(app, popup)
 		ui.text(p, "+" .. (data.gold or 0), 22, 26, 26, ui.GOLD)
 
 		local drops = data.drops or {}
-		local n = math.min(3, #drops)
+		local n = math.min(4, #drops)
+		local step_x = n == 4 and 112 or 145
+		local card_w = n == 4 and 104 or 128
 		for i = 1, n do
 			local dr = drops[i]
 			local sq = squads.get(dr.id)
-			local dx = (i - (n + 1) / 2) * 145
-			ui.slice(p, ui.RARITY_FRAME[sq.rarity], dx, -66, 128, 118, ui.WHITE, 16)
-			ui.icon(p, sq.sprite, dx, -56, 76)
+			local dx = (i - (n + 1) / 2) * step_x
+			ui.slice(p, ui.RARITY_FRAME[sq.rarity], dx, -66, card_w, 118, ui.WHITE, 16)
+			ui.icon(p, sq.sprite, dx, -56, math.min(76, card_w - 22))
 			ui.text(p, "+" .. dr.count, dx, -104, 20, ui.GREEN)
 		end
 		ui.btn(p, "btn_gold", 0, -172, 260, 58, i18n.t("CLAIM"), 24, function()
@@ -106,27 +108,38 @@ function M.build(app, popup)
 	elseif kind == "card" then
 		local sq = squads.get(data.id)
 		local c = progress.data.cards[sq.id]
-		local w, h = 480, 500
+		local w, h = 490, 560
 		local p = panel(root, app, w, h, i18n.t("SQ_" .. sq.id))
 		close_btn(p, w, h, function() app.close_popup() end)
 
-		ui.slice(p, ui.RARITY_FRAME[sq.rarity], 0, 100, 180, 146, ui.WHITE, 20)
-		ui.icon(p, sq.sprite, 0, 100, 124)
+		ui.slice(p, ui.RARITY_FRAME[sq.rarity], 0, 140, 180, 146, ui.WHITE, 20)
+		ui.icon(p, sq.sprite, 0, 140, 124)
 
 		local atk = squads.power(sq.id, c.level)
-		ui.text(p, i18n.t("RARITY_" .. sq.rarity) .. " | " .. i18n.t("LVL_FMT", { n = c.level }), 0, 4, 20, ui.GOLD)
-		ui.text(p, i18n.t("ATK_FMT", { n = atk }) .. "   (" .. i18n.t("SLOT_" .. sq.color) .. ")", 0, -30, 19, ui.BONE)
-		local tr = ui.text(p, i18n.t("TRAIT_" .. sq.trait), 0, -68, 18, ui.DIM)
-		ui.fit(tr, w - 60, 18)
+		ui.text(p, i18n.t("RARITY_" .. sq.rarity) .. " | " .. i18n.t("LVL_FMT", { n = c.level }), 0, 44, 20, ui.GOLD)
+		ui.text(p, i18n.t("ATK_FMT", { n = atk }) .. "   (" .. i18n.t("SLOT_" .. sq.color) .. ")", 0, 12, 18, ui.BONE)
+
+		-- 2-Crystal Rune Skill box
+		if sq.skill and sq.runes then
+			local sk_box = ui.slice(p, "panel_dark", 0, -48, w - 52, 76, ui.WHITE, 16)
+			ui.box(sk_box, "gem_" .. sq.runes[1], -w / 2 + 54, 14, 26, 26)
+			ui.text(sk_box, "+", -w / 2 + 78, 14, 18, ui.DIM)
+			ui.box(sk_box, "gem_" .. sq.runes[2], -w / 2 + 102, 14, 26, 26)
+			local sk_dmg = squads.skill_power(sq.id, c.level)
+			local sk_lbl = ui.text(sk_box, i18n.t("SKILL_FMT", { name = i18n.t("SK_" .. sq.skill.id), dmg = sk_dmg }), 52, 14, 17, ui.DIAMOND)
+			ui.fit(sk_lbl, w - 195, 17)
+			local hint = ui.text(sk_box, i18n.t("RUNE_HINT"), 0, -18, 15, ui.DIM)
+			ui.fit(hint, w - 76, 15)
+		end
 
 		if c.unlocked then
 			local req = squads.upgrade_req(sq.id, c.level)
 			local gcost = squads.upgrade_gold(sq.id, c.level)
 			if req then
-				ui.hp_bar(p, 0, -110, 320, 26, c.count, req, 0, progress.can_upgrade_card(sq.id) and ui.GREEN or ui.BLUE)
+				ui.hp_bar(p, 0, -124, 320, 26, c.count, req, 0, progress.can_upgrade_card(sq.id) and ui.GREEN or ui.BLUE)
 			end
 			local is_eq = progress.data.slots[sq.color] == sq.id
-			ui.btn(p, is_eq and "btn_dark" or "btn_gold", -105, -178, 190, 58,
+			ui.btn(p, is_eq and "btn_dark" or "btn_gold", -105, -200, 190, 58,
 				i18n.t(is_eq and "EQUIPPED" or "EQUIP"), 20, function()
 					if not is_eq then
 						progress.assign_slot(sq.id)
@@ -136,26 +149,26 @@ function M.build(app, popup)
 				end)
 			if req and gcost then
 				local can_u = progress.can_upgrade_card(sq.id)
-				ui.btn(p, can_u and "btn_gold" or "btn_dark", 105, -178, 190, 58,
+				ui.btn(p, can_u and "btn_gold" or "btn_dark", 105, -200, 190, 58,
 					i18n.t("UPGRADE", { g = gcost }), 18, function()
 						if progress.upgrade_card(sq.id) then
 							audio.play("upgrade")
 							app.open_popup("card", { id = sq.id })
 							app.rebuild()
 						else
-							ui.float_text(p, i18n.t("MISS_RES"), 105, -125, 18, ui.RED, 35)
+							ui.float_text(p, i18n.t("MISS_RES"), 105, -145, 18, ui.RED, 35)
 						end
 					end)
 			end
 		else
 			local dc = squads.unlock_diamonds(sq.id)
-			ui.btn(p, "btn_purple", 0, -178, 280, 60, i18n.t("BUY_CARD", { d = dc }), 22, function()
+			ui.btn(p, "btn_purple", 0, -200, 280, 60, i18n.t("BUY_CARD", { d = dc }), 22, function()
 				if progress.buy_locked_card(sq.id) then
 					audio.play("upgrade")
 					app.close_popup()
 					app.rebuild()
 				else
-					ui.float_text(p, i18n.t("MISS_RES"), 0, -120, 18, ui.RED, 35)
+					ui.float_text(p, i18n.t("MISS_RES"), 0, -140, 18, ui.RED, 35)
 				end
 			end)
 		end

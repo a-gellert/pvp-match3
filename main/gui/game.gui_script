@@ -245,6 +245,24 @@ function init(self)
 		app.show_map()
 	elseif ds == "shop" then
 		app.show_shop()
+	elseif ds == "battle_fx" then
+		app.start_campaign(1, true)
+		app.session.tutorial = false
+		app.rebuild()
+		local function pulse_fx()
+			if app.screen ~= "battle" then return end
+			local evs = app.session.events
+			local sq_r = app.session.player.squads.red
+			if sq_r then sq_r.rune_filled[1] = true end
+			evs[#evs + 1] = { kind = "rune", who = "player", color = "red", slot = 1, rune_color = "red" }
+			evs[#evs + 1] = { kind = "attack", who = "player", color = "yellow", dmg = 14, style = "ranged", fx = "proj_arrow", units = 4 }
+			evs[#evs + 1] = { kind = "skill", who = "player", color = "purple", skill_id = "meteor_storm", style = "magic", fx = "proj_fire", units = 3, dmg = 28, dealt = 28, blocked = 0, effect = "burn" }
+			evs[#evs + 1] = { kind = "status", who = "enemy", stype = "burn", val = 6 }
+			evs[#evs + 1] = { kind = "attack", who = "player", color = "red", dmg = 9, style = "melee", fx = "fx_slash", units = 4 }
+			battle_view.process()
+			ui.after(0.85, pulse_fx)
+		end
+		ui.after(0.35, pulse_fx)
 	elseif ds == "battle" or (not progress.data.onboarding_done and progress.data.onboarding_step == 0) then
 		app.start_campaign(1, true)
 	else
