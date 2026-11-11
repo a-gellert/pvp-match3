@@ -1,46 +1,64 @@
--- App controller: screens (Battle / Hub / Map / Shop), Popups, Poki SDK & input.
+-- App controller: screens (Battle / Hub tabs), popups + queue, Druid layers, Poki SDK and input.
+
+-- gui.pick_node multiplies the input point by (window size / project display size) even with
+-- ADJUST_REFERENCE_DISABLED, while our nodes live in the virtual canvas. Wrap it so every hit test
+-- (Druid buttons, scrolls, drags, blockers) takes virtual coordinates. Must run before Druid is
+-- required: druid.helper caches gui.pick_node at load time.
+local PICK = { kx = 1, ky = 1 }
+local raw_pick_node = gui.pick_node
+gui.pick_node = function(node, x, y)
+	return raw_pick_node(node, x * PICK.kx, y * PICK.ky)
+end
+
 local ui = require "main.gui.ui"
 local battle_view = require "main.gui.battle_view"
 local hub_view = require "main.gui.hub_view"
-local map_view = require "main.gui.map_view"
-local shop_view = require "main.gui.shop_view"
 local popups = require "main.gui.popups"
 local layout = require "main.modules.layout"
 local battle = require "main.modules.battle"
 local campaign = require "main.modules.campaign"
 local progress = require "main.modules.progress"
+local quests = require "main.modules.quests"
+local config = require "main.modules.config"
 local poki = require "main.modules.poki"
 local audio = require "main.modules.audio"
 local i18n = require "main.modules.i18n"
 
 local TOUCH = hash("touch")
-local BACK = hash("back")
 
-local app = {}
+local app = { tab = "home", queue = {} }
 
-function app.rebuild()
+-- ---------------------------------------------------------------- screens
+local function fade_in_overlay()
+	local n = ui.box(nil, "square", app.vw / 2, app.vh / 2, app.vw, app.vh, vmath.vector4(0.03, 0.04, 0.07, 1))
+	gui.animate(n, "color.w", 0, gui.EASING_OUTQUAD, 0.28, 0, function() gui.delete_node(n) end)
+end
+
+function app.rebuild(with_fade)
 	ui.gen = ui.gen + 1
-	ui.buttons = {}
-	app.pressed = nil
+	ui.popup_gen = ui.popup_gen + 1
+	ui.close_layer("popup")
+	ui.close_layer("screen")
 	if app.screen_layer then gui.delete_node(app.screen_layer) end
 	if app.popup_layer then gui.delete_node(app.popup_layer) end
+	app.popup_root = nil
 	app.screen_layer = ui.pane(nil, 0, 0)
 	app.popup_layer = ui.pane(nil, 0, 0)
-	ui.layer = "screen"
+
+	ui.open_layer("screen")
+	ui.druid:new_back_handler(function() ui.defer(app.on_back) end)
 	if app.screen == "battle" and app.session then
 		battle_view.build(app, app.screen_layer)
-	elseif app.screen == "map" then
-		map_view.build(app, app.screen_layer)
-	elseif app.screen == "shop" then
-		shop_view.build(app, app.screen_layer)
 	else
+		app.screen = "hub"
 		hub_view.build(app, app.screen_layer)
 	end
 	if app.popup then
-		ui.layer = "popup"
+		ui.open_layer("popup")
 		popups.build(app, app.popup)
-		ui.layer = "screen"
 	end
+	ui.set_layer("screen")
+	if with_fade then fade_in_overlay() end
 end
 
 local function update_size()
@@ -48,45 +66,89 @@ local function update_size()
 	if w == app.win_w and h == app.win_h then return false end
 	app.win_w, app.win_h = w, h
 	app.vw, app.vh, app.orient = layout.virtual_size(w, h)
+	if w > 0 and h > 0 then
+		PICK.kx, PICK.ky = (app.dw or 540) / w, (app.dh or 960) / h
+	end
 	return true
 end
 
+-- ---------------------------------------------------------------- popups
 function app.open_popup(kind, data)
-	if app.popup then app.close_popup() end
-	app.popup = { kind = kind, data = data }
-	ui.layer = "popup"
+	if app.popup then app.close_popup(true) end
+	app.popup = { kind = kind, data = data or {} }
+	ui.open_layer("popup")
 	popups.build(app, app.popup)
-	ui.layer = "screen"
+	ui.set_layer("screen")
 end
 
-function app.close_popup()
+function app.close_popup(keep_queue)
+	ui.close_layer("popup")
 	if app.popup_root then gui.delete_node(app.popup_root) end
 	ui.popup_gen = ui.popup_gen + 1
 	app.popup_root = nil
 	app.popup = nil
-	app.pressed = nil
-	ui.remove_buttons("popup")
+	ui.set_layer("screen")
+	if not keep_queue then app.next_popup() end
 end
 
-function app.show_hub()
+-- Popups that should appear one after another (rewards, league up, daily calendar...)
+function app.queue_popup(kind, data)
+	app.queue[#app.queue + 1] = { kind = kind, data = data }
+	if not app.popup then app.next_popup() end
+end
+
+function app.next_popup()
+	if app.popup or #app.queue == 0 then return end
+	local p = table.remove(app.queue, 1)
+	app.open_popup(p.kind, p.data)
+end
+
+function app.on_back()
+	if app.popup then
+		popups.on_back(app)
+	elseif app.screen == "battle" then
+		app.pause()
+	elseif app.tab ~= "home" then
+		app.set_tab("home")
+	else
+		app.open_popup("settings")
+	end
+end
+
+-- ---------------------------------------------------------------- navigation
+function app.show_hub(tab)
 	poki.gameplay_stop()
 	app.screen = "hub"
 	app.session = nil
-	app.rebuild()
+	app.tab = tab or app.tab or "home"
+	progress.tick_day()
+	app.rebuild(true)
+	app.hub_entered()
 end
 
-function app.show_map()
-	poki.gameplay_stop()
-	app.screen = "map"
-	app.session = nil
-	app.rebuild()
+function app.set_tab(tab)
+	if app.tab == tab and app.screen == "hub" then return end
+	app.tab = tab
+	audio.play("whoosh", 0.5)
+	app.rebuild(true)
 end
 
-function app.show_shop()
-	poki.gameplay_stop()
-	app.screen = "shop"
-	app.session = nil
-	app.rebuild()
+-- Things that pop up when the player arrives in the hub.
+function app.hub_entered()
+	if progress.data.onboarding_done and quests.login_pending(progress.data) then
+		app.queue_popup("daily")
+	end
+end
+
+local function battle_opts(base)
+	local d = progress.data
+	base.player_hp = progress.hero_hp()
+	base.player_moves = d.max_moves
+	base.heal_power = progress.heal_power()
+	base.shield_power = progress.shield_power()
+	base.player_squads = progress.player_slots_for_battle()
+	base.boosters = d.boosters
+	return base
 end
 
 function app.start_campaign(stage_id, skip_break)
@@ -94,88 +156,134 @@ function app.start_campaign(stage_id, skip_break)
 		local stg = campaign.get_stage(stage_id)
 		local d = progress.data
 		app.last_fight = { mode = "campaign", stage_id = stage_id }
-		app.session = battle.new({
+		app.session = battle.new(battle_opts({
 			mode = "campaign",
 			stage_id = stg.id,
 			tutorial = stg.tutorial and not d.onboarding_done,
 			seed = os.time() + stg.id * 31,
-			player_hp = progress.hero_hp(),
-			player_moves = d.max_moves,
-			heal_power = progress.heal_power(),
-			shield_power = progress.shield_power(),
-			player_squads = progress.player_slots_for_battle(),
 			enemy_name_key = stg.name_key,
 			enemy_face = stg.face,
 			enemy_hp = stg.hp,
 			enemy_moves = stg.moves,
 			enemy_diff = stg.diff,
 			enemy_squads = stg.squads,
-			boosters = d.boosters,
-		})
+		}))
 		app.screen = "battle"
 		app.popup = nil
-		app.rebuild()
+		app.queue = {}
+		app.rebuild(true)
+		poki.measure("battle", "campaign_" .. stg.id, "start")
 	end
-	if skip_break then go() else poki.commercial_break(stage_id, go) end
+	if skip_break then go() else poki.commercial_break((progress.data.stats.battles or 0) + 1, go) end
 end
 
 function app.start_pvp_search()
-	local opp = campaign.pvp_opponent(progress.data.prestige, os.time())
+	local d = progress.data
+	local opp = campaign.pvp_opponent(d.prestige, os.time(), progress.player_power())
 	app.open_popup("pvp_search", { opp = opp })
 end
 
 function app.launch_pvp(opp)
 	local d = progress.data
-	app.last_fight = { mode = "pvp", opp = opp }
-	app.session = battle.new({
-		mode = "pvp",
-		stage_id = 0,
-		seed = os.time() + (d.prestige or 0),
-		player_hp = progress.hero_hp(),
-		player_moves = d.max_moves,
-		heal_power = progress.heal_power(),
-		shield_power = progress.shield_power(),
-		player_squads = progress.player_slots_for_battle(),
-		enemy_name = opp.name,
-		enemy_face = opp.face,
-		enemy_hp = opp.hp,
-		enemy_moves = opp.moves,
-		enemy_diff = opp.diff,
-		enemy_squads = opp.squads,
-		boosters = d.boosters,
-	})
-	app.screen = "battle"
-	app.rebuild()
+	local function go()
+		app.last_fight = { mode = "pvp", opp = opp }
+		app.session = battle.new(battle_opts({
+			mode = "pvp",
+			stage_id = 0,
+			seed = os.time() + (d.prestige or 0),
+			enemy_name = opp.name,
+			enemy_face = opp.face,
+			enemy_hp = opp.hp,
+			enemy_moves = opp.moves,
+			enemy_diff = opp.diff,
+			enemy_squads = opp.squads,
+			tint = config.LEAGUES[config.league_index(d.prestige)].color,
+		}))
+		app.screen = "battle"
+		app.popup = nil
+		app.queue = {}
+		app.rebuild(true)
+		poki.measure("battle", "pvp", "start")
+	end
+	poki.commercial_break((d.stats.battles or 0) + 1, go)
 end
 
-function app.retry_battle()
-	if not app.last_fight then app.show_hub(); return end
-	if app.last_fight.mode == "pvp" then
-		app.launch_pvp(app.last_fight.opp)
-	else
-		app.start_campaign(app.last_fight.stage_id)
-	end
+-- ---------------------------------------------------------------- battle results
+local function persist_boosters(s)
+	for k, v in pairs(s.boosters) do progress.data.boosters[k] = v end
+	progress.save()
+end
+
+local function result_opts(won)
+	local s = app.session
+	local stg = s.mode == "campaign" and campaign.get_stage(s.stage_id) or app.last_fight.opp
+	return {
+		won = won,
+		is_pvp = s.mode == "pvp",
+		stage_id = s.mode == "campaign" and s.stage_id or nil,
+		gold = stg and stg.gold or 45,
+		chest = stg and stg.chest or "wood",
+		tutorial = s.tutorial,
+		stats = s.stats,
+		hp_ratio = battle.hp_ratio(s),
+	}
 end
 
 function app.on_battle_end(won)
 	poki.gameplay_stop()
 	local s = app.session
 	if not s then return end
-	-- Persist remaining boosters
-	for k, v in pairs(s.boosters) do progress.data.boosters[k] = v end
-
-	local stg = s.mode == "campaign" and campaign.get_stage(s.stage_id) or app.last_fight.opp
-	local res = progress.apply_battle_result({
-		won = won,
-		is_pvp = s.mode == "pvp",
-		stage_id = s.stage_id,
-		gold = stg and stg.gold or 45,
-		chest = stg and stg.chest or "wood",
-		tutorial = s.tutorial,
-	})
-	app.open_popup(won and "win" or "lose", res)
+	persist_boosters(s)
+	if won then
+		local res = progress.apply_battle_result(result_opts(true))
+		res.stats = s.stats
+		poki.measure("battle", s.mode, "win")
+		app.open_popup("win", res)
+	else
+		-- Loss is applied only when the player leaves (a revive keeps the fight going).
+		local opts = result_opts(false)
+		local is_pvp = opts.is_pvp
+		app.pending_loss = opts
+		poki.measure("battle", s.mode, "lose")
+		app.open_popup("lose", {
+			gold = math.floor(opts.gold * 0.25),
+			prestige_delta = -(is_pvp and config.PVP_PRESTIGE_LOSE or config.PRESTIGE_LOSE),
+			can_revive = not s.revived,
+		})
+	end
 end
 
+function app.apply_pending_loss()
+	if app.pending_loss then
+		progress.apply_battle_result(app.pending_loss)
+		app.pending_loss = nil
+	end
+end
+
+function app.leave_battle(tab)
+	app.apply_pending_loss()
+	app.close_popup(true)
+	app.show_hub(tab or "home")
+end
+
+function app.retry_battle()
+	app.apply_pending_loss()
+	app.close_popup(true)
+	if not app.last_fight then app.show_hub(); return end
+	if app.last_fight.mode == "pvp" then
+		app.start_pvp_search()
+	else
+		app.start_campaign(app.last_fight.stage_id)
+	end
+end
+
+function app.next_stage()
+	local nxt = math.min(campaign.COUNT, (progress.data.max_stage_unlocked or 1))
+	app.close_popup(true)
+	app.start_campaign(nxt)
+end
+
+-- ---------------------------------------------------------------- rewarded ads
 function app.reward_double_gold(data)
 	poki.rewarded("medium", function(ok)
 		if ok and not data.doubled then
@@ -190,9 +298,9 @@ end
 
 function app.reward_second_chance()
 	poki.rewarded("medium", function(ok)
-		if ok and app.session then
-			battle.revive_player(app.session)
-			app.close_popup()
+		if ok and app.session and battle.revive_player(app.session) then
+			app.pending_loss = nil
+			app.close_popup(true)
 			app.rebuild()
 			poki.gameplay_start()
 		end
@@ -205,7 +313,7 @@ function app.buy_booster_ad(kind)
 			app.session.boosters[kind] = (app.session.boosters[kind] or 0) + 1
 			progress.data.boosters[kind] = app.session.boosters[kind]
 			progress.save()
-			app.rebuild()
+			battle_view.refresh_hud()
 		end
 	end)
 end
@@ -220,9 +328,47 @@ function app.pause()
 	end
 end
 
+-- ---------------------------------------------------------------- lifecycle
+local function debug_setup(ds)
+	local d = progress.data
+	if ds == "" then return false end
+	d.onboarding_step = 2
+	d.onboarding_done = true
+	d.gold, d.diamonds = 1450, 220
+	d.prestige, d.max_prestige = 340, 360
+	d.max_stage_unlocked = 9
+	d.stars = { 3, 3, 2, 3, 1, 2, 3, 2 }
+	d.cards.red_militia.count = 5
+	d.cards.red_wolves.unlocked = true
+	d.cards.red_wolves.new = true
+	d.cards.purple_necro.unlocked = true
+	progress.add_chest("wood")
+	local s2 = progress.add_chest("silver")
+	if s2 then progress.start_chest(s2) end
+	progress.add_chest("royal")
+	d.streak = 3
+	if ds ~= "daily" then d.login.last_day = quests.today() end
+	if ds == "home" or ds == "hub" then app.show_hub("home")
+	elseif ds == "cards" or ds == "map" or ds == "shop" or ds == "quests" then app.show_hub(ds)
+	elseif ds == "battle" then app.start_campaign(7, true)
+	elseif ds == "pvp" then app.launch_pvp(campaign.pvp_opponent(d.prestige, 5, progress.player_power()))
+	elseif ds == "chest" then app.show_hub("home"); app.open_popup("chest", progress.roll_chest("royal", 77))
+	elseif ds == "win" then
+		app.start_campaign(7, true)
+		app.open_popup("win", { won = true, gold = 124, prestige_delta = 25, chest_rarity = "silver", chest_slot = 4, stars = 3, new_stars = 3, stage_id = 7, stats = app.session.stats })
+	elseif ds == "daily" then app.show_hub("home")
+	elseif ds == "road" then app.show_hub("home"); app.open_popup("road")
+	elseif ds == "stage" then app.show_hub("map"); app.open_popup("stage", { id = 9 })
+	else return false end
+	return true
+end
+
 function init(self)
 	msg.post(".", "acquire_input_focus")
 	math.randomseed(os.time())
+	ui.init(self)
+	quests.time_offset = sys.get_config_int("pvp.time_offset", 0)
+	battle_view.autoplay = sys.get_config_int("pvp.autoplay", 0) == 1
 	progress.load(sys.get_config_int("pvp.fresh", 0) == 1)
 	local force_lang = sys.get_config_string("pvp.lang", "")
 	if force_lang ~= "" then progress.data.lang = force_lang end
@@ -233,46 +379,17 @@ function init(self)
 	update_size()
 
 	local ds = sys.get_config_string("pvp.debug_screen", "")
-	if ds == "hub" then
-		progress.add_chest("wood")
-		local s2 = progress.add_chest("silver")
-		if s2 then progress.start_chest(s2) end
-		progress.add_chest("royal")
-		progress.data.cards.red_militia.count = 2
-		progress.data.onboarding_step = 1
-		app.show_hub()
-	elseif ds == "map" then
-		app.show_map()
-	elseif ds == "shop" then
-		app.show_shop()
-	elseif ds == "battle_fx" then
-		app.start_campaign(1, true)
-		app.session.tutorial = false
-		app.rebuild()
-		local function pulse_fx()
-			if app.screen ~= "battle" then return end
-			local evs = app.session.events
-			local sq_r = app.session.player.squads.red
-			if sq_r then sq_r.rune_filled[1] = true end
-			evs[#evs + 1] = { kind = "rune", who = "player", color = "red", slot = 1, rune_color = "red" }
-			evs[#evs + 1] = { kind = "attack", who = "player", color = "yellow", dmg = 14, style = "ranged", fx = "proj_arrow", units = 4 }
-			evs[#evs + 1] = { kind = "skill", who = "player", color = "purple", skill_id = "meteor_storm", style = "magic", fx = "proj_fire", units = 3, dmg = 28, dealt = 28, blocked = 0, effect = "burn" }
-			evs[#evs + 1] = { kind = "status", who = "enemy", stype = "burn", val = 6 }
-			evs[#evs + 1] = { kind = "attack", who = "player", color = "red", dmg = 9, style = "melee", fx = "fx_slash", units = 4 }
-			battle_view.process()
-			ui.after(0.85, pulse_fx)
-		end
-		ui.after(0.35, pulse_fx)
-	elseif ds == "battle" or (not progress.data.onboarding_done and progress.data.onboarding_step == 0) then
+	if debug_setup(ds) then return end
+	if not progress.data.onboarding_done and progress.data.onboarding_step == 0 then
 		app.start_campaign(1, true)
 	else
-		app.show_hub()
+		app.show_hub(progress.data.onboarding_step == 1 and "cards" or "home")
 	end
 end
 
 function update(self, dt)
 	audio.update(dt)
-	if update_size() then app.resize_t = 0.1 end
+	if update_size() then app.resize_t = 0.12 end
 	if app.resize_t then
 		app.resize_t = app.resize_t - dt
 		if app.resize_t <= 0 then
@@ -281,46 +398,36 @@ function update(self, dt)
 		end
 	end
 	if poki.is_ad_active() then return end
-	if app.screen == "battle" and not app.popup then
-		battle_view.update(dt)
-	elseif app.screen == "hub" and not app.popup then
+	ui.update(dt)
+	if app.screen == "battle" then
+		if not app.popup then battle_view.update(dt) end
+	else
 		hub_view.update(dt)
 	end
 end
 
-local function to_virtual(action)
-	return action.x / app.dw * app.vw, action.y / app.dh * app.vh
-end
-
 function on_input(self, action_id, action)
 	if poki.is_ad_active() then return true end
-	if action_id == TOUCH then
-		local x, y = to_virtual(action)
-		local layer = app.popup and "popup" or "screen"
-		if action.pressed then
-			local b = ui.find_button(x, y, layer)
-			if b then
-				app.pressed = b
-				ui.press(b)
-			elseif app.screen == "battle" and not app.popup then
-				if battle_view.tap(x, y, true, false) then poki.gameplay_start() end
-			end
-		elseif action.released then
-			if app.pressed then
-				local b = app.pressed
-				app.pressed = nil
-				ui.release(b, ui.find_button(x, y, layer) == b)
-			elseif app.screen == "battle" and not app.popup then
-				if battle_view.tap(x, y, false, true) then poki.gameplay_start() end
-			end
-		end
-		return true
-	elseif action_id == BACK and action.pressed then
-		if app.popup then
-			app.close_popup()
-		else
-			app.pause()
-		end
-		return true
+	if action.x then
+		-- Druid hit-tests with gui.pick_node; our GUI lives in the virtual canvas
+		-- (adjust reference disabled), so convert screen -> virtual units once here.
+		local kx, ky = app.vw / app.dw, app.vh / app.dh
+		action.x, action.y = action.x * kx, action.y * ky
+		if action.dx then action.dx, action.dy = action.dx * kx, action.dy * ky end
 	end
+	if action_id == TOUCH and action.pressed then audio.start_music() end
+	local layer = app.popup and "popup" or "screen"
+	local d = ui.layers[layer]
+	if d then
+		local prev = ui.layer
+		ui.set_layer(layer)
+		d:on_input(action_id, action)
+		ui.set_layer(prev)
+	end
+	return true
+end
+
+function final(self)
+	ui.close_layer("popup")
+	ui.close_layer("screen")
 end

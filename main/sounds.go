@@ -118,3 +118,83 @@ embedded_components {
   "group: \"sfx\"\n"
   "gain: 1.0\n"
 }
+embedded_components {
+  id: "coin"
+  type: "sound"
+  data: "sound: \"/main/assets/sounds/coin.wav\"\n"
+  "looping: 0\n"
+  "group: \"sfx\"\n"
+  "gain: 1.0\n"
+}
+embedded_components {
+  id: "star"
+  type: "sound"
+  data: "sound: \"/main/assets/sounds/star.wav\"\n"
+  "looping: 0\n"
+  "group: \"sfx\"\n"
+  "gain: 1.0\n"
+}
+embedded_components {
+  id: "whoosh"
+  type: "sound"
+  data: "sound: \"/main/assets/sounds/whoosh.wav\"\n"
+  "looping: 0\n"
+  "group: \"sfx\"\n"
+  "gain: 1.0\n"
+}
+embedded_components {
+  id: "combo"
+  type: "sound"
+  data: "sound: \"/main/assets/sounds/combo.wav\"\n"
+  "looping: 0\n"
+  "group: \"sfx\"\n"
+  "gain: 1.0\n"
+}
+embedded_components {
+  id: "levelup"
+  type: "sound"
+  data: "sound: \"/main/assets/sounds/levelup.wav\"\n"
+  "looping: 0\n"
+  "group: \"sfx\"\n"
+  "gain: 1.0\n"
+}
+embedded_components {
+  id: "quest"
+  type: "sound"
+  data: "sound: \"/main/assets/sounds/quest.wav\"\n"
+  "looping: 0\n"
+  "group: \"sfx\"\n"
+  "gain: 1.0\n"
+}
+embedded_components {
+  id: "flip"
+  type: "sound"
+  data: "sound: \"/main/assets/sounds/flip.wav\"\n"
+  "looping: 0\n"
+  "group: \"sfx\"\n"
+  "gain: 1.0\n"
+}
+embedded_components {
+  id: "turn"
+  type: "sound"
+  data: "sound: \"/main/assets/sounds/turn.wav\"\n"
+  "looping: 0\n"
+  "group: \"sfx\"\n"
+  "gain: 1.0\n"
+}
+embedded_components {
+  id: "notify"
+  type: "sound"
+  data: "sound: \"/main/assets/sounds/notify.wav\"\n"
+  "looping: 0\n"
+  "group: \"sfx\"\n"
+  "gain: 1.0\n"
+}
+embedded_components {
+  id: "music"
+  type: "sound"
+  data: "sound: \"/main/assets/sounds/music.wav\"\n"
+  "looping: 1\n"
+  "group: \"music\"\n"
+  "gain: 0.55\n"
+}

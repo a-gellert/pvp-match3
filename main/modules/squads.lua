@@ -231,7 +231,7 @@ M.LIST = {
 		fx = "fx_slash",
 		trait = "crush",
 		runes = { "purple", "blue" },
-		skill = { id = "quake", mult = 1.85, effect = "crush", val = 1.8, fx = "fx_slash" },
+		skill = { id = "quake", mult = 1.75, effect = "crush", val = 1.5, fx = "fx_slash" },
 	},
 	{
 		id = "purple_reaper",

@@ -12,7 +12,7 @@ local function build_fighter_squads(slot_defs)
 	for _, col in ipairs(config.ATTACK_COLORS) do
 		local def = slot_defs[col]
 		local info = squads.get(def.id)
-		local lvl = def.level or 1
+		local lvl = def.level or def.lvl or 1
 		out[col] = {
 			id = def.id,
 			level = lvl,
@@ -47,6 +47,17 @@ function M.new(opts)
 		turn_num = 1,
 		status = "play",
 		events = {},
+		-- Player-side stats for quests / results screen
+		stats = {
+			gems = { red = 0, yellow = 0, purple = 0, green = 0, blue = 0 },
+			max_combo = 0,
+			combos = 0,
+			skills = 0,
+			specials = 0,
+			damage = 0,
+			boosters = 0,
+			moves = 0,
+		},
 		boosters = {
 			shuffle = opts.boosters and opts.boosters.shuffle or 0,
 			hammer = opts.boosters and opts.boosters.hammer or 0,
@@ -60,8 +71,8 @@ function M.new(opts)
 			max_shield = math.floor(p_hp * config.SHIELD_CAP_RATIO),
 			moves_left = opts.player_moves or 1,
 			max_moves = opts.player_moves or 1,
-			heal_power = opts.heal_power or config.BASE_HEAL,
-			shield_power = opts.shield_power or config.BASE_SHIELD,
+			heal_power = opts.heal_power or math.floor(p_hp * config.HEAL_RATIO + 0.5),
+			shield_power = opts.shield_power or math.floor(p_hp * config.SHIELD_RATIO + 0.5),
 			squads = build_fighter_squads(opts.player_squads),
 			statuses = { burn = nil, poison = nil, freeze = 0 },
 		},
@@ -76,8 +87,8 @@ function M.new(opts)
 			moves_left = opts.enemy_moves or 1,
 			max_moves = opts.enemy_moves or 1,
 			difficulty = opts.enemy_diff or 1,
-			heal_power = math.max(6, math.floor(e_hp * 0.14)),
-			shield_power = math.max(6, math.floor(e_hp * 0.14)),
+			heal_power = math.max(6, math.floor(e_hp * config.HEAL_RATIO + 0.5)),
+			shield_power = math.max(6, math.floor(e_hp * config.SHIELD_RATIO + 0.5)),
 			squads = build_fighter_squads(opts.enemy_squads),
 			statuses = { burn = nil, poison = nil, freeze = 0 },
 		},
@@ -85,7 +96,28 @@ function M.new(opts)
 end
 
 local function push(s, ev)
+	if s.cur_step and not ev.step then ev.step = s.cur_step end
 	s.events[#s.events + 1] = ev
+	if ev.who == "player" and s.stats then
+		if (ev.kind == "attack" or ev.kind == "skill") and ev.dealt then
+			s.stats.damage = s.stats.damage + ev.dealt
+		end
+		if ev.kind == "skill" then s.stats.skills = s.stats.skills + 1 end
+	end
+end
+
+local function track_steps(s, who, steps)
+	if who ~= "player" then return end
+	local st = s.stats
+	st.moves = st.moves + 1
+	for _, step in ipairs(steps) do
+		for col, cnt in pairs(step.counts) do
+			if st.gems[col] then st.gems[col] = st.gems[col] + cnt end
+		end
+		st.specials = st.specials + #(step.specials or {})
+		if step.cascade > st.max_combo then st.max_combo = step.cascade end
+	end
+	if #steps >= 2 then st.combos = st.combos + 1 end
 end
 
 local function fury_mult(s)
@@ -129,7 +161,7 @@ local function trigger_skill(s, actor, target, who, col, sq)
 	if eff == "fury_heal" and actor.hp < actor.max_hp * 0.6 then
 		dmg = math.floor(dmg * 1.45 + 0.5)
 	elseif eff == "shield_slam" then
-		dmg = dmg + math.floor(actor.shield * (sk.val or 0.5) + 0.5)
+		dmg = dmg + math.min(dmg, math.floor(actor.shield * (sk.val or 0.5) + 0.5))
 	elseif eff == "crush" and target.shield > 0 then
 		dmg = math.floor(dmg * (sk.val or 1.6) + 0.5)
 	elseif eff == "execute" and target.hp < target.max_hp * 0.5 then
@@ -186,7 +218,7 @@ local function trigger_skill(s, actor, target, who, col, sq)
 		target.statuses.poison = { dmg = sk.val or 7, turns = sk.dur or 3 }
 		push(s, { kind = "status", who = who == "player" and "enemy" or "player", stype = "poison", val = target.statuses.poison.dmg })
 	elseif eff == "freeze" then
-		target.statuses.freeze = math.min(2, (target.statuses.freeze or 0) + (sk.val or 1))
+		target.statuses.freeze = math.min(1, (target.statuses.freeze or 0) + (sk.val or 1))
 		push(s, { kind = "status", who = who == "player" and "enemy" or "player", stype = "freeze", val = target.statuses.freeze })
 	end
 end
@@ -221,7 +253,9 @@ end
 
 local function apply_cascade_effects(s, actor, target, who, steps)
 	local fm = fury_mult(s)
-	for _, step in ipairs(steps) do
+	track_steps(s, who, steps)
+	for step_idx, step in ipairs(steps) do
+		s.cur_step = step_idx
 		local c_mult = (1 + 0.25 * (step.cascade - 1)) * fm
 		for _, col in ipairs(config.ATTACK_COLORS) do
 			local cnt = step.counts[col] or 0
@@ -239,7 +273,7 @@ local function apply_cascade_effects(s, actor, target, who, steps)
 				elseif sq.trait == "pierce" then
 					pierce = 0.5
 				elseif sq.trait == "crush" and target.shield > 0 then
-					dmg = math.floor(dmg * 1.35 + 0.5)
+					dmg = math.floor(dmg * 1.25 + 0.5)
 				end
 				local dealt, blocked = apply_damage(target, dmg, pierce)
 				push(s, {
@@ -295,6 +329,11 @@ local function apply_cascade_effects(s, actor, target, who, steps)
 	end
 end
 
+local function apply_effects(s, actor, target, who, steps)
+	apply_cascade_effects(s, actor, target, who, steps)
+	s.cur_step = nil
+end
+
 local function begin_turn(s, next_who)
 	if next_who == "player" then s.turn_num = s.turn_num + 1 end
 	s.turn = next_who
@@ -316,13 +355,11 @@ local function begin_turn(s, next_who)
 
 	local freeze = st_map.freeze or 0
 	st_map.freeze = 0
-	actor.moves_left = math.max(0, actor.max_moves - freeze)
+	-- Freeze removes moves but always leaves at least one (no skipped turns).
+	actor.moves_left = math.max(1, actor.max_moves - freeze)
 	push(s, { kind = "turn", turn = next_who, turn_num = s.turn_num, freeze = freeze })
-
-	if actor.moves_left == 0 then
-		push(s, { kind = "frozen", who = next_who })
-		local other = next_who == "player" and "enemy" or "player"
-		begin_turn(s, other)
+	if freeze > 0 then
+		push(s, { kind = "frozen", who = next_who, lost = actor.max_moves - actor.moves_left })
 	end
 end
 
@@ -335,7 +372,7 @@ function M.player_swap(s, r1, c1, r2, c2)
 		s.tutorial_step = s.tutorial_step + 1
 	end
 	push(s, { kind = "swap", who = "player", r1 = r1, c1 = c1, r2 = r2, c2 = c2, steps = steps, shuffled = shuffled })
-	apply_cascade_effects(s, s.player, s.enemy, "player", steps)
+	apply_effects(s, s.player, s.enemy, "player", steps)
 
 	s.player.moves_left = math.max(0, s.player.moves_left - 1)
 	if check_end(s) then return true end
@@ -358,7 +395,7 @@ function M.step_enemy(s)
 		local steps, shuffled = board.resolve_swap(s.board, m.r1, m.c1, m.r2, m.c2)
 		if steps then
 			push(s, { kind = "swap", who = "enemy", r1 = m.r1, c1 = m.c1, r2 = m.r2, c2 = m.c2, steps = steps, shuffled = shuffled })
-			apply_cascade_effects(s, s.enemy, s.player, "enemy", steps)
+			apply_effects(s, s.enemy, s.player, "enemy", steps)
 		end
 	end
 	s.enemy.moves_left = math.max(0, s.enemy.moves_left - 1)
@@ -375,12 +412,14 @@ function M.use_booster(s, kind, r, c)
 	if (s.boosters[kind] or 0) <= 0 then return false end
 	if kind == "shuffle" then
 		s.boosters.shuffle = s.boosters.shuffle - 1
+		s.stats.boosters = s.stats.boosters + 1
 		board.shuffle(s.board)
 		push(s, { kind = "shuffle", booster = true })
 		return true
 	elseif kind == "extra_move" then
 		if s.player.moves_left >= config.MAX_MOVES then return false end
 		s.boosters.extra_move = s.boosters.extra_move - 1
+		s.stats.boosters = s.stats.boosters + 1
 		s.player.moves_left = s.player.moves_left + 1
 		push(s, { kind = "extra_move" })
 		return true
@@ -388,8 +427,9 @@ function M.use_booster(s, kind, r, c)
 		local steps, shuffled = board.use_hammer(s.board, r, c)
 		if not steps then return false end
 		s.boosters.hammer = s.boosters.hammer - 1
+		s.stats.boosters = s.stats.boosters + 1
 		push(s, { kind = "hammer", r = r, c = c, steps = steps, shuffled = shuffled })
-		apply_cascade_effects(s, s.player, s.enemy, "player", steps)
+		apply_effects(s, s.player, s.enemy, "player", steps)
 		check_end(s)
 		return true
 	end
@@ -397,19 +437,41 @@ function M.use_booster(s, kind, r, c)
 end
 
 function M.revive_player(s)
-	if s.status ~= "lose" then return false end
+	if s.status ~= "lose" or s.revived then return false end
+	s.revived = true
 	s.status = "play"
 	s.turn = "player"
 	s.player.hp = math.max(1, math.floor(s.player.max_hp * 0.5))
+	s.player.shield = math.floor(s.player.max_shield * 0.5)
 	s.player.moves_left = s.player.max_moves
 	s.player.statuses = { burn = nil, poison = nil, freeze = 0 }
 	push(s, { kind = "revive" })
 	return true
 end
 
+-- Hint: the swap that clears the most gems (ties -> first found).
 function M.suggest_move(s)
 	local moves = board.valid_moves(s.board.grid)
-	return moves[1]
+	local best, best_n = moves[1], -1
+	local g = s.board.grid
+	for _, m in ipairs(moves) do
+		local a, b = g[m.r1][m.c1], g[m.r2][m.c2]
+		local n = 0
+		if a.special == "prism" or b.special == "prism" then
+			n = 12
+		else
+			g[m.r1][m.c1], g[m.r2][m.c2] = b, a
+			for _, grp in ipairs(board.find_matches(g)) do n = n + #grp.cells + (grp.spawn and 3 or 0) end
+			g[m.r1][m.c1], g[m.r2][m.c2] = a, b
+		end
+		if n > best_n then best, best_n = m, n end
+	end
+	return best
+end
+
+-- Remaining-HP ratio of the player (stars / results).
+function M.hp_ratio(s)
+	return s.player.hp / math.max(1, s.player.max_hp)
 end
 
 return M

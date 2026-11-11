@@ -224,6 +224,63 @@ images {
   image: "/main/assets/images/icon_freeze.png"
 }
 images {
+  image: "/main/assets/images/icon_star.png"
+}
+images {
+  image: "/main/assets/images/icon_star_empty.png"
+}
+images {
+  image: "/main/assets/images/icon_calendar.png"
+}
+images {
+  image: "/main/assets/images/icon_quest.png"
+}
+images {
+  image: "/main/assets/images/icon_gift.png"
+}
+images {
+  image: "/main/assets/images/icon_fire.png"
+}
+images {
+  image: "/main/assets/images/icon_shop.png"
+}
+images {
+  image: "/main/assets/images/icon_trophy.png"
+}
+images {
+  image: "/main/assets/images/league_badge.png"
+}
+images {
+  image: "/main/assets/images/badge_dot.png"
+}
+images {
+  image: "/main/assets/images/icon_back.png"
+}
+images {
+  image: "/main/assets/images/icon_play.png"
+}
+images {
+  image: "/main/assets/images/node_stage.png"
+}
+images {
+  image: "/main/assets/images/path_dot.png"
+}
+images {
+  image: "/main/assets/images/rays.png"
+}
+images {
+  image: "/main/assets/images/vignette.png"
+}
+images {
+  image: "/main/assets/images/edge_glow.png"
+}
+images {
+  image: "/main/assets/images/bg_glow.png"
+}
+images {
+  image: "/main/assets/images/tab_active.png"
+}
+images {
   image: "/main/assets/images/arena_bg.png"
 }
 images {

@@ -32,11 +32,19 @@ wasm_streaming = 1
 show_fullscreen_button = 0
 show_made_with_defold = 0
 cssfile = /main/html5/dark.css
-heap_size = 64
+heap_size = 96
 
 [native_extension]
 app_manifest = /main/game.appmanifest
 
+[druid]
+input_key_back = key_back
+input_touch = touch
+no_auto_input = 1
+
 [project]
 title = Gem Vanguard
-dependencies#0 = https://github.com/defold/extension-poki-sdk/archive/refs/heads/main.zip
+version = 1.1.0
+dependencies#0 = https://github.com/defold/extension-poki-sdk/archive/3e0c3296e6c4a27b99387d9c54d06626daa94b89.zip
+dependencies#1 = https://github.com/Insality/defold-event/archive/refs/tags/21.zip
+dependencies#2 = https://github.com/Insality/druid/archive/refs/tags/1.3.0.zip

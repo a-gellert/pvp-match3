@@ -1,10 +1,19 @@
 -- Poki SDK wrapper: gameplay events, commercial breaks, rewarded breaks and analytics.
+-- All audio is muted while an ad is on screen (Poki requirement).
+local audio = require "main.modules.audio"
+
 local M = {}
 
 local gameplay = false
 local ad_active = false
 
-M.FIRST_BREAK_LEVEL = 4
+-- Commercial breaks start after the onboarding battles (Poki rate-limits them on its side too).
+M.FIRST_BREAK_LEVEL = 3
+
+local function set_ad(active)
+	ad_active = active
+	audio.ad_mute(active)
+end
 
 local function sdk()
 	return rawget(_G, "poki_sdk")
@@ -44,14 +53,14 @@ function M.commercial_break(level, on_done)
 		return
 	end
 	M.gameplay_stop()
-	ad_active = true
+	set_ad(true)
 	local done = false
 	s.commercial_break(function(_, status)
 		if status == s.COMMERCIAL_BREAK_START then
-			ad_active = true
+			set_ad(true)
 		elseif not done then
 			done = true
-			ad_active = false
+			set_ad(false)
 			if on_done then on_done() end
 		end
 	end)
@@ -64,14 +73,14 @@ function M.rewarded(size, on_done)
 		return
 	end
 	M.gameplay_stop()
-	ad_active = true
+	set_ad(true)
 	local done = false
 	s.rewarded_break(size or "small", function(_, status)
 		if status == s.REWARDED_BREAK_START then
-			ad_active = true
+			set_ad(true)
 		elseif not done then
 			done = true
-			ad_active = false
+			set_ad(false)
 			if on_done then on_done(status == s.REWARDED_BREAK_SUCCESS) end
 		end
 	end)

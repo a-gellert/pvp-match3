@@ -750,6 +750,154 @@ function drawWolf(c, cx, cy, s) {
   frz.save('icon_freeze');
 }
 
+// ======================================================================= META / RETENTION UI
+{ // Stars (campaign rating)
+  const s1 = canvas(64, 64);
+  s1.fill(star(32, 35, 27, 12, 5, -90, 3), H('#090b12', 0.5));
+  s1.outlined(star(32, 32, 27, 12, 5, -90, 3), vgrad(H('#fff09a'), H('#e89a1c'), 8, 56), 3);
+  s1.fill(star(28, 26, 9, 4, 5, -90, 1), [1, 1, 1, 0.55]);
+  s1.save('icon_star');
+
+  const s0 = canvas(64, 64);
+  s0.outlined(star(32, 32, 27, 12, 5, -90, 3), H('#2a3147'), 3);
+  s0.stroke(star(32, 32, 22, 10, 5, -90, 2), H('#47557a', 0.8), 2);
+  s0.save('icon_star_empty');
+}
+{ // icon_calendar (daily login)
+  const c = canvas(64, 64);
+  c.outlined(rbox(32, 36, 23, 21, 6), vgrad(H('#f3eee6'), H('#c9c2b6'), 15, 57), 3);
+  c.fill(rbox(32, 22, 23, 7, 5), H('#e6485c'));
+  c.fill(rbox(32, 18, 21, 3, 2), H('#ff9aa8', 0.6));
+  for (const x of [21, 43]) c.outlined(capsule(x, 10, x, 20, 3), H('#9aa6bf'), 2);
+  for (let i = 0; i < 3; i++) for (let j = 0; j < 2; j++) c.fill(rbox(20 + i * 12, 36 + j * 10, 3.5, 3, 1), H('#4a587a'));
+  c.fill(rbox(44, 46, 4.5, 4, 1.2), H('#e8b84b'));
+  c.save('icon_calendar');
+}
+{ // icon_quest (parchment scroll with seal)
+  const c = canvas(64, 64);
+  c.parts([
+    [rbox(32, 32, 18, 22, 3), vgrad(H('#f3e3bd'), H('#cfb486'), 10, 54)],
+    [capsule(12, 12, 52, 12, 5), H('#b68c44')],
+    [capsule(12, 52, 52, 52, 5), H('#b68c44')],
+  ], 3);
+  for (let i = 0; i < 3; i++) c.fill(rbox(30, 22 + i * 8, 11, 1.4, 0.7), H('#7a5a32', 0.8));
+  c.outlined(circle(43, 42, 6), H('#e6485c'), 2);
+  c.save('icon_quest');
+}
+{ // icon_gift (free chest)
+  const c = canvas(64, 64);
+  c.outlined(rbox(32, 40, 21, 16, 3), vgrad(H('#b95cff'), H('#5a2a9e'), 24, 56), 3);
+  c.outlined(rbox(32, 24, 24, 6, 3), H('#d26eff'), 3);
+  c.fill(rbox(32, 38, 5, 18, 1), H('#ffd644'));
+  c.fill(rbox(32, 24, 5, 6, 1), H('#ffd644'));
+  c.outlined(union(ellipseR(23, 14, 9, 5, -25), ellipseR(41, 14, 9, 5, 25)), H('#ffd644'), 2.5);
+  c.save('icon_gift');
+}
+{ // icon_fire (win streak)
+  const c = canvas(64, 64);
+  const flame = union(circle(32, 42, 15), poly([[17, 40], [24, 16], [30, 26], [36, 6], [47, 30], [47, 42]], 3));
+  c.outlined(flame, vgrad(H('#ffe36b'), H('#ff422e'), 8, 56), 3);
+  c.fill(union(circle(32, 46, 8), poly([[24, 46], [30, 30], [40, 46]], 2)), H('#fff7c2'));
+  c.save('icon_fire');
+}
+{ // icon_shop (bag)
+  const c = canvas(64, 64);
+  c.stroke(inter(circle(32, 22, 10), (x, y) => y - 22), H('#b68c44'), 4);
+  c.outlined(poly([[12, 24], [52, 24], [56, 56], [8, 56]], 4), vgrad(H('#f2bd47'), H('#b56d1c'), 24, 56), 3);
+  c.outlined(circle(32, 40, 7), H('#ffe89c'), 2);
+  c.save('icon_shop');
+}
+{ // icon_trophy (cup)
+  const c = canvas(64, 64);
+  c.stroke(union(ring(14, 24, 7, 3.5), ring(50, 24, 7, 3.5)), H('#b56d1c'), 3);
+  c.parts([
+    [poly([[16, 10], [48, 10], [46, 30], [32, 40], [18, 30]], 4), vgrad(H('#ffe36b'), H('#d0821c'), 10, 40)],
+    [rbox(32, 44, 4, 6, 1), H('#d0821c')],
+    [rbox(32, 54, 13, 5, 2), H('#8a5a2a')],
+  ], 3);
+  c.fill(rbox(25, 20, 2.5, 7, 1.2), [1, 1, 1, 0.5]);
+  c.save('icon_trophy');
+}
+{ // league_badge (white, tinted per league) 96x96
+  const c = canvas(96, 96);
+  const shield = poly([[48, 8], [84, 20], [80, 56], [48, 88], [16, 56], [12, 20]], 8);
+  c.fill(grow(shield, 4), H('#0c0f18'));
+  c.fill(shield, vgrad(H('#ffffff'), H('#9aa0ad'), 10, 88));
+  c.stroke(poly([[48, 16], [76, 25], [73, 54], [48, 79], [23, 54], [20, 25]], 6), H('#ffffff', 0.7), 3);
+  c.fill(star(48, 46, 17, 8, 5, -90, 2), H('#2a3147', 0.55));
+  c.save('league_badge');
+}
+{ // badge_dot (notification) 40x40
+  const c = canvas(40, 40);
+  c.fill(circle(20, 20, 18), H('#ffffff'));
+  c.fill(circle(20, 20, 15), vgrad(H('#ff6b7d'), H('#c41d3a'), 6, 34));
+  c.save('badge_dot');
+}
+{ // icon_back (arrow left) / icon_play
+  const c = canvas(64, 64);
+  c.outlined(union(capsule(18, 32, 46, 32, 5), capsule(18, 32, 30, 20, 5), capsule(18, 32, 30, 44, 5)), H('#f3eee6'), 3);
+  c.save('icon_back');
+  const p = canvas(64, 64);
+  p.outlined(poly([[22, 14], [50, 32], [22, 50]], 4), H('#f3eee6'), 3);
+  p.save('icon_play');
+}
+{ // node_stage (campaign medallion, neutral stone + gold rim) 96x96
+  const c = canvas(96, 96);
+  c.fill(circle(48, 52, 40), H('#05070c', 0.55));
+  c.outlined(circle(48, 47, 39), vgrad(H('#e8b84b'), H('#8a5a20'), 10, 86), 3);
+  c.fill(circle(48, 47, 31), vgrad(H('#3a4566'), H('#1b2133'), 18, 78));
+  c.stroke(circle(48, 47, 31), H('#0c0f18', 0.8), 2);
+  c.fill(ellipse(40, 32, 14, 6), [1, 1, 1, 0.12]);
+  c.save('node_stage');
+}
+{ // path_dot 24x24
+  const c = canvas(24, 24);
+  c.fill(circle(12, 12, 9), H('#ffffff'));
+  c.save('path_dot');
+}
+{ // rays (reward sunburst) 256x256
+  const c = canvas(256, 256);
+  c.fill((x, y) => {
+    const a = Math.atan2(y - 128, x - 128);
+    const k = Math.abs(Math.sin(a * 8));
+    return (0.62 - k) * 40;
+  }, (x, y) => [1, 1, 1, clamp01(1 - len(x - 128, y - 128) / 126) * 0.9]);
+  c.save('rays');
+}
+{ // vignette 128x128 (transparent center -> dark edges), stretched over screens
+  const c = canvas(128, 128);
+  c.fill((x, y) => -1, (x, y) => {
+    const d = len((x - 64) / 64, (y - 64) / 64);
+    const t = clamp01((d - 0.55) / 0.85);
+    return [0.02, 0.03, 0.06, t * t * 0.95];
+  });
+  c.save('vignette');
+}
+{ // edge_glow 128x128: white edges, transparent centre (tint it: low-HP warning, skill flashes)
+  const c = canvas(128, 128);
+  c.fill((x, y) => -1, (x, y) => {
+    const d = len((x - 64) / 64, (y - 64) / 64);
+    const t = clamp01((d - 0.62) / 0.7);
+    return [1, 1, 1, t * 0.95];
+  });
+  c.save('edge_glow');
+}
+{ // bg_glow: soft light blob for backgrounds 64x128
+  const c = canvas(64, 128);
+  c.fill((x, y) => -1, (x, y) => {
+    const t = clamp01(1 - len((x - 32) / 32, (y - 64) / 64));
+    return [1, 1, 1, t * t * 0.8];
+  });
+  c.save('bg_glow');
+}
+{ // tab_active (nav highlight, slice-9)
+  const t = canvas(96, 96);
+  t.outlined(rbox(48, 48, 44, 44, 18), vgrad(H('#3b4766'), H('#232a40'), 6, 90), 3);
+  t.stroke(rbox(48, 48, 40, 40, 15), H('#e8b84b', 0.9), 3);
+  t.fill(rbox(48, 22, 30, 6, 4), H('#ffffff', 0.12));
+  t.save('tab_active');
+}
+
 // ======================================================================= IMPORT NANO BANANA ART
 const ART_DIR = 'main/assets/art';
 if (fs.existsSync(ART_DIR)) {

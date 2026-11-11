@@ -6,14 +6,23 @@
 ## Core Principles
 1. **Target platform**: Poki (`wasm-web`). Fast startup, compact release bundle, portrait (mobile) and landscape (desktop).
 2. **Visual Style**: Casual Dark Fantasy — deep indigo/slate stone (`#111521`, `#1c2233`, `#262e45`), aged gold/bronze accents (`#e8b84b`), saturated elemental gems (`red`, `yellow`, `purple`, `green`, `blue`), expressive commander face portraits, and squad sprites of **1–5 warriors**.
-3. **GUI only & Zero Heavy Physics**: Everything is rendered via `main/gui/game.gui` with code-built nodes and lightweight GUI tweens (`ui.lua`). `main/game.appmanifest` strips Box2D/Bullet/models/particles.
-4. **Virtual canvas**: `main/modules/layout.lua` maps the window to `720x1280` (portrait, aspect < 0.9) or `1600x900` (landscape).
-   - Portrait Battle: Top arena (Player squads left, Enemy squads right, Commander face icons at bottom corners of arena) -> Match-3 board -> Bottom Boosters bar.
-   - Landscape Battle: Left arena + commanders + boosters, Right Match-3 board.
-5. **Modular Architecture**: Keep code split into small single-purpose modules:
-   - Logic (`main/modules/`): `config`, `squads`, `campaign`, `board`, `ai`, `battle`, `progress`, `i18n`, `layout`, `rng`, `poki`, `audio`. Core combat/board logic has zero Defold API calls so it can run headlessly in simulations.
-   - Views (`main/gui/`): `ui`, `battle_view`, `hub_view`, `map_view`, `shop_view`, `popups`, `game.gui_script`.
-6. **Determinism**: Gameplay RNG uses `rng.lua` (Park-Miller); `math.random` is only for visual FX.
-7. **Rebuildable views**: Resize/orientation rebuilds screens via `app.rebuild()`. Delayed callbacks use `ui.after(...)`.
-8. **Poki SDK & Button Rules**: `gameplay_start` on active play, `gameplay_stop` on pause/popups/hub; `commercial_break` from level 4; `rewarded_break` buttons always have a non-rewarded alternative at least as prominent and are never green.
-9. **Localization & Assets**: Visible strings live in `main/modules/i18n.lua` (`ru`, `en`). Always regenerate `main/assets/fonts/main.font` (`node tools/gen_font.js`), `main/assets/game.atlas` + `main/gui/sprite_sizes.lua` (`node tools/gen_sprites.js`), and `main/sounds.go` (`node tools/gen_sounds.js`) instead of hand-editing generated files.
+3. **GUI only & Zero Heavy Physics**: Everything is rendered via `main/gui/game.gui` with code-built nodes and lightweight GUI tweens. `main/game.appmanifest` strips Box2D/Bullet/models/particles.
+4. **Druid UI**: All interactive GUI goes through [Druid](https://github.com/Insality/druid) 1.3 (dependency together with `defold-event`):
+   - `ui.lua` owns two Druid instances — the `screen` layer and the `popup` layer (`ui.open_layer` / `ui.close_layer`). Input is routed to the popup layer while a popup is open.
+   - Buttons (`ui.btn`, `ui.button`), auto-fitting texts (`ui.label`), progress bars with damage "ghost" (`ui.bar`), stencil scrolls (`ui.scroll`), popup blockers and back handlers, and the board swipe (`new_drag`) are Druid components. Style lives in `main/gui/druid_style.lua`.
+   - Button callbacks are deferred one frame (`ui.defer`) because Druid animates the node after the callback and callbacks often rebuild the screen.
+   - Always call `druid:final()` (via `ui.close_layer`) **before** deleting the nodes of a layer. `druid.no_auto_input = 1`: the gui_script owns input focus.
+   - Input coordinates are converted to the virtual canvas once in `game.gui_script` (`action.x/y`), so `gui.pick_node` works with `ADJUST_REFERENCE_DISABLED`; drag uses `NO_USE_SCREEN_KOEF`.
+5. **Virtual canvas**: `main/modules/layout.lua` maps the window to `720x1280` (portrait, aspect < 0.9) or `1600x900` (landscape); the extra dimension grows with the screen. Layouts are computed from the real `app.vw/app.vh` and centred composition widths, never from fixed pixel positions.
+   - Battle portrait: top bar -> arena -> commanders + HP bars -> 7x7 board -> boosters. Landscape: left column (arena, commanders, boosters), board on the right.
+   - Hub: top bar (commander, league, gold, gems, settings) + bottom tab bar (Shop, Squads, Battle, Map, Quests) with notification badges.
+6. **Modular Architecture**: Keep code split into small single-purpose modules:
+   - Logic (`main/modules/`): `config`, `squads`, `campaign`, `board`, `ai`, `battle`, `progress`, `quests`, `i18n`, `layout`, `rng`, `poki`, `audio`. Core combat / board / economy logic has zero Defold API calls (except `sys.save/load`) so it runs headlessly in simulations.
+   - Views (`main/gui/`): `ui`, `druid_style`, `widgets`, `battle_view`, `hub_view` (shell + home tab), `cards_view`, `map_view`, `shop_view`, `quests_view`, `popups`, `game.gui_script` (app controller, popup queue, navigation).
+7. **Determinism**: Gameplay RNG uses `rng.lua` (Park-Miller); `math.random` is only for visual FX.
+8. **Rebuildable views**: Resize/orientation rebuilds screens via `app.rebuild()`. Delayed callbacks use `ui.after(...)` (generation-guarded, restores the Druid layer).
+9. **Battle animation contract**: `battle.lua` tags every effect event with the cascade `step` it came from; `battle_view.process()` animates each step (clear -> specials -> gravity -> refill) and schedules effects at their step time, then `sync_board()` reconciles with the logic grid.
+10. **Balance**: enemies scale from `campaign.expected_build(n)` (expected card level / moves / commander HP). Re-check with a headless AI-vs-AI simulation after changing `config`, `squads`, `campaign` or `battle` (target: ~65–75% average win rate, bosses ~35–60%).
+11. **Poki SDK & Button Rules**: `gameplay_start` on active play, `gameplay_stop` on pause/popups/hub; `commercial_break` before battles from the 3rd battle; all audio muted during ads; `rewarded_break` buttons always have a non-rewarded alternative at least as prominent and are never green.
+12. **Localization & Assets**: Visible strings live in `main/modules/i18n.lua` (`ru`, `en`). Always regenerate `main/assets/fonts/main.font` (`node tools/gen_font.js`), `main/assets/game.atlas` + `main/gui/sprite_sizes.lua` (`node tools/gen_sprites.js`), and `main/sounds.go` + WAVs + music loop (`node tools/gen_sounds.js`) instead of hand-editing generated files.
+13. **Testing**: `sh tools/build_web.sh` builds the web bundle; `node tools/web_smoke.js "bundle/web/Gem Vanguard" out --screen=<home|cards|map|shop|quests|battle|pvp|chest|win|road|stage> --size=WxH [--steps=...]` takes screenshots in headless Edge/Chrome and counts Lua errors.
