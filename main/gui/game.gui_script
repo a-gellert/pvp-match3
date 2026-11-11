@@ -125,6 +125,7 @@ end
 
 -- ---------------------------------------------------------------- navigation
 function app.show_hub(tab)
+	app.paused_gameplay = nil
 	poki.gameplay_stop()
 	app.screen = "hub"
 	app.session = nil
@@ -179,6 +180,7 @@ function app.start_campaign(stage_id, skip_break)
 		app.screen = "battle"
 		app.popup = nil
 		app.queue = {}
+		app.paused_gameplay = nil
 		app.rebuild(true)
 		poki.measure("battle", "campaign_" .. stg.id, "start")
 	end
@@ -210,6 +212,7 @@ function app.launch_pvp(opp)
 		app.screen = "battle"
 		app.popup = nil
 		app.queue = {}
+		app.paused_gameplay = nil
 		app.rebuild(true)
 		poki.measure("battle", "pvp", "start")
 	end
@@ -238,6 +241,7 @@ local function result_opts(won)
 end
 
 function app.on_battle_end(won)
+	app.paused_gameplay = nil
 	poki.gameplay_stop()
 	local s = app.session
 	if not s then return end
@@ -329,11 +333,19 @@ end
 function app.pause()
 	if app.popup then return end
 	if app.screen == "battle" then
+		app.paused_gameplay = poki.is_gameplay()
 		poki.gameplay_stop()
 		app.open_popup("pause")
 	else
 		app.open_popup("settings")
 	end
+end
+
+function app.resume_battle()
+	local was_playing = app.paused_gameplay
+	app.paused_gameplay = nil
+	app.close_popup()
+	if was_playing and not app.popup then poki.gameplay_start() end
 end
 
 -- ---------------------------------------------------------------- lifecycle

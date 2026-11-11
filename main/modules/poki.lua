@@ -27,6 +27,10 @@ function M.is_ad_active()
 	return ad_active
 end
 
+function M.is_gameplay()
+	return gameplay
+end
+
 function M.gameplay_start()
 	if gameplay or ad_active then return end
 	gameplay = true

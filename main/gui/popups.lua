@@ -783,11 +783,10 @@ end
 
 B.pause = function(app, root)
 	local p, w, h = panel(root, app, 560, 600, i18n.t("PAUSED"))
-	close_btn(app, p, w, h, function() app.close_popup(); poki.gameplay_start() end)
+	close_btn(app, p, w, h, function() app.resume_battle() end)
 	local y = settings_body(app, p, w, h, "pause")
 	ui.btn(p, "btn_gold", 0, y - 10, w - 80, 80, i18n.t("RESUME"), 28, function()
-		app.close_popup()
-		poki.gameplay_start()
+		app.resume_battle()
 	end, { icon = "icon_play", icon_size = 40 })
 	ui.btn(p, "btn_crimson", 0, y - 110, w - 80, 64, i18n.t("SURRENDER"), 22, function()
 		app.close_popup(true)
@@ -812,8 +811,7 @@ function M.on_back(app)
 	elseif kind == "lose" then
 		app.leave_battle()
 	elseif kind == "pause" then
-		app.close_popup()
-		poki.gameplay_start()
+		app.resume_battle()
 	elseif kind == "pvp_search" or kind == "chest" then
 		return
 	else

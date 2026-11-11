@@ -616,7 +616,6 @@ function M.build(app, parent)
 		M.process() -- e.g. the revive event after a second chance
 	else
 		show_tutorial()
-		if s.status == "play" and s.turn == "player" then poki.gameplay_start() end
 	end
 	-- Rebuilt (resize) after the fight already ended: make sure the result screen still shows
 	if s.status ~= "play" and not app.popup then
@@ -684,7 +683,6 @@ function M.intro()
 	ui.after(2.25, function()
 		st.busy = false
 		show_tutorial()
-		if st.session.status == "play" then poki.gameplay_start() end
 	end)
 end
 
@@ -1189,7 +1187,6 @@ function M.process()
 		sync_disp()
 		M.refresh_hud()
 		show_tutorial()
-		if s.status == "play" and s.turn == "player" then poki.gameplay_start() end
 	end)
 end
 
@@ -1202,6 +1199,7 @@ function M.on_booster_tap(kind)
 		st.app.buy_booster_ad(kind)
 		return
 	end
+	poki.gameplay_start()
 	if kind == "hammer" then
 		st.hammer_mode = not st.hammer_mode
 		if st.hammer_mode then
@@ -1270,6 +1268,7 @@ function M.touch_start(x, y)
 	if not can_act() then return end
 	local r, c = screen_to_cell(x, y)
 	if not r then return end
+	poki.gameplay_start()
 	if st.hammer_mode then
 		st.hammer_mode = false
 		if battle.use_booster(st.session, "hammer", r, c) then M.process() else M.refresh_hud() end
