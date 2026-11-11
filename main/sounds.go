@@ -191,6 +191,38 @@ embedded_components {
   "gain: 1.0\n"
 }
 embedded_components {
+  id: "death"
+  type: "sound"
+  data: "sound: \"/main/assets/sounds/death.wav\"\n"
+  "looping: 0\n"
+  "group: \"sfx\"\n"
+  "gain: 1.0\n"
+}
+embedded_components {
+  id: "crit"
+  type: "sound"
+  data: "sound: \"/main/assets/sounds/crit.wav\"\n"
+  "looping: 0\n"
+  "group: \"sfx\"\n"
+  "gain: 1.0\n"
+}
+embedded_components {
+  id: "turn_you"
+  type: "sound"
+  data: "sound: \"/main/assets/sounds/turn_you.wav\"\n"
+  "looping: 0\n"
+  "group: \"sfx\"\n"
+  "gain: 1.0\n"
+}
+embedded_components {
+  id: "turn_enemy"
+  type: "sound"
+  data: "sound: \"/main/assets/sounds/turn_enemy.wav\"\n"
+  "looping: 0\n"
+  "group: \"sfx\"\n"
+  "gain: 1.0\n"
+}
+embedded_components {
   id: "music"
   type: "sound"
   data: "sound: \"/main/assets/sounds/music.wav\"\n"

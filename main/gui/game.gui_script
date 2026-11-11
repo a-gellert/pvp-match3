@@ -91,6 +91,14 @@ function app.close_popup(keep_queue)
 	if not keep_queue then app.next_popup() end
 end
 
+-- Rebuild the screen under a new popup (e.g. card upgraded -> level up): drop the current popup first
+-- so it is not rebuilt and then immediately replaced within the same frame.
+function app.refresh_then_popup(kind, data)
+	app.popup = nil
+	app.rebuild()
+	app.open_popup(kind, data)
+end
+
 -- Popups that should appear one after another (rewards, league up, daily calendar...)
 function app.queue_popup(kind, data)
 	app.queue[#app.queue + 1] = { kind = kind, data = data }

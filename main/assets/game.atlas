@@ -281,6 +281,15 @@ images {
   image: "/main/assets/images/tab_active.png"
 }
 images {
+  image: "/main/assets/images/icon_skull.png"
+}
+images {
+  image: "/main/assets/images/band.png"
+}
+images {
+  image: "/main/assets/images/reticle.png"
+}
+images {
   image: "/main/assets/images/arena_bg.png"
 }
 images {

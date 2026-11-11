@@ -1,4 +1,4 @@
--- Shared composite widgets: squad card tile, chest slot, reward chips, section headers.
+-- Shared composite widgets: squad card (Clash Royale style), chest slot, reward chips, section headers.
 local ui = require "main.gui.ui"
 local config = require "main.modules.config"
 local squads = require "main.modules.squads"
@@ -8,7 +8,9 @@ local i18n = require "main.modules.i18n"
 local M = {}
 local V4 = vmath.vector4
 
--- Squad card. opts: active (equipped check), tut (hand pointer), on_tap, compact
+-- Squad card in Clash Royale style: rarity frame, big art, colour gem (its lane), level ribbon and
+-- the card-count bar under it (green + arrow when an upgrade is ready).
+-- opts: tut (hand pointer), on_tap, deck (bigger fonts), hide_bar
 function M.card_tile(parent, sq, x, y, w, h, opts)
 	opts = opts or {}
 	local d = progress.data
@@ -16,54 +18,57 @@ function M.card_tile(parent, sq, x, y, w, h, opts)
 	local unlocked = c.unlocked
 	local req = squads.upgrade_req(sq.id, c.level)
 	local can_up = progress.can_upgrade_card(sq.id)
+	local bar_h = opts.hide_bar and 0 or math.max(22, math.floor(h * 0.1))
+	local ch = h - bar_h - (bar_h > 0 and 6 or 0)
+	local cy = y + (h - ch) / 2
 
+	local holder = ui.pane(parent, x, cy)
+	if can_up then
+		local gl = ui.glow(ui.box(holder, "glow", 0, 0, w * 1.5, ch * 1.3, V4(0.3, 1, 0.5, 0.28)))
+		ui.pulse(gl, 1.06, 0.6)
+	end
 	local frame = ui.RARITY_FRAME[sq.rarity] or "card_common"
-	local card = ui.slice(parent, frame, x, y, w, h, unlocked and ui.WHITE or V4(0.55, 0.57, 0.66, 1), 20)
+	local card = ui.slice(holder, frame, 0, 0, w, ch, unlocked and ui.WHITE or V4(0.45, 0.47, 0.56, 1), 20)
 	if opts.on_tap then ui.button(card, opts.on_tap) end
 
-	ui.box(card, ui.GEM_SPRITE[sq.color], -w / 2 + 22, h / 2 - 22, 26, 26)
-	if sq.runes then
-		ui.box(card, ui.GEM_SPRITE[sq.runes[1]], -9, h / 2 - 20, 16, 16)
-		ui.box(card, ui.GEM_SPRITE[sq.runes[2]], 9, h / 2 - 20, 16, 16)
-	end
-	if opts.active then
-		ui.box(card, "icon_check", w / 2 - 20, h / 2 - 20, 26, 26)
-	elseif not unlocked then
-		ui.box(card, "icon_lock", w / 2 - 20, h / 2 - 20, 22, 22)
-	end
-
-	local art_size = math.min(w - 30, h - 74, 96)
-	local art = ui.icon(card, sq.sprite, 0, 10, art_size, unlocked and ui.WHITE or V4(0.35, 0.36, 0.45, 1))
+	local art_size = math.min(w - 22, ch - 44)
+	local art = ui.icon(card, sq.sprite, 0, 8, art_size, unlocked and ui.WHITE or V4(0.08, 0.09, 0.14, 0.9))
 	if unlocked then ui.bob(art, 3, 1.3, math.random() * 0.6) end
+	ui.box(card, ui.GEM_SPRITE[sq.color], -w / 2 + 20, ch / 2 - 20, 28, 28)
 
-	ui.label(card, i18n.t("SQ_" .. sq.id), 0, -h / 2 + 46, 16, ui.BONE, w - 16)
 	if unlocked then
-		local lv = ui.slice(card, "panel_dark", -w / 2 + 34, h / 2 - 50, 52, 26, ui.WHITE, 10)
-		ui.label(lv, i18n.t("LVL_FMT", { n = c.level }), 0, 1, 15, ui.GOLD, 46)
-		if req then
-			local bar = ui.bar(card, 0, -h / 2 + 20, w - 22, 20, math.min(1, c.count / req), can_up and ui.GREEN or ui.BLUE,
-				{ text = c.count .. "/" .. req, text_size = 15 })
-			if can_up then
-				local arrow = ui.box(card, "icon_play", w / 2 - 18, -h / 2 + 22, 24, 24, ui.GREEN)
-				gui.set_euler(arrow, vmath.vector3(0, 0, 90))
-				ui.bob(arrow, 4, 0.4)
-			end
-		else
-			ui.label(card, i18n.t("MAX"), 0, -h / 2 + 20, 16, ui.GOLD, w - 20)
-		end
+		local rw = math.min(w - 20, opts.deck and 120 or 96)
+		local rib = ui.slice(card, "panel_dark", 0, -ch / 2 + 16, rw, opts.deck and 32 or 28, ui.WHITE, 12)
+		ui.label(rib, i18n.t("LVL_FMT", { n = c.level }), 0, 2, opts.deck and 20 or 17, ui.RARITY_COLOR[sq.rarity] or ui.BONE, rw - 12)
 	else
-		ui.box(card, "icon_diamond", -20, -h / 2 + 20, 22, 22)
-		ui.text(card, tostring(squads.unlock_diamonds(sq.id)), 12, -h / 2 + 20, 18, ui.DIAMOND)
+		ui.text(card, "?", 0, 8, art_size * 0.5, ui.DIM)
+		ui.box(card, "icon_lock", w / 2 - 20, ch / 2 - 20, 24, 24)
 	end
 	if c.new then
-		local tag = ui.slice(card, "btn_crimson", w / 2 - 30, h / 2 - 52, 58, 26, ui.WHITE, 10)
+		local tag = ui.slice(card, "btn_crimson", w / 2 - 30, ch / 2 - 16, 60, 26, ui.WHITE, 10)
 		ui.text(tag, i18n.t("NEW"), 0, 2, 14, ui.WHITE)
 		ui.pulse(tag, 1.1, 0.4)
 	end
+
+	if bar_h > 0 and unlocked then
+		local by = y - h / 2 + bar_h / 2
+		if req then
+			local bar = ui.bar(parent, x, by, w - 4, bar_h, math.min(1, c.count / req), can_up and ui.GREEN or ui.BLUE,
+				{ text = c.count .. "/" .. req, text_size = math.max(14, bar_h - 7) })
+			if can_up then
+				local arrow = ui.box(bar.bg, "icon_play", -(w - 4) / 2 + 2, 0, bar_h + 8, bar_h + 8, ui.GREEN)
+				gui.set_euler(arrow, vmath.vector3(0, 0, 90))
+				ui.bob(arrow, 3, 0.4)
+			end
+		else
+			local mx = ui.slice(parent, "panel_dark", x, by, w - 4, bar_h, ui.WHITE, 8)
+			ui.text(mx, i18n.t("MAX"), 0, 1, math.max(14, bar_h - 7), ui.GOLD)
+		end
+	end
 	if opts.tut then
-		local hand = ui.box(card, "icon_hand", 22, -16, 56, 56)
+		local hand = ui.box(card, "icon_hand", 22, -16, 64, 64)
 		ui.pulse(hand, 1.18, 0.45)
-		local gl = ui.glow(ui.slice(card, "tab_active", 0, 0, w + 14, h + 14, ui.GOLD, 18))
+		local gl = ui.glow(ui.slice(card, "tab_active", 0, 0, w + 14, ch + 14, ui.GOLD, 18))
 		ui.pulse(gl, 1.03, 0.4)
 	end
 	return card

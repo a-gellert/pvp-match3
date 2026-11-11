@@ -14,10 +14,12 @@ M.HEAL_RATIO = 0.10     -- green 3-match heals 10% of max HP
 M.SHIELD_RATIO = 0.10   -- blue 3-match gives 10% of max HP as shield
 M.FURY_TURN = 8 -- from turn 8+, damage +20% per turn so battles always end
 
+M.HP_SCALE = 1.0 -- global HP scale for both sides (battle length; enemies derive from commander_hp)
+
 -- Commander max HP from commander level (card upgrades), moves per turn and prestige.
 function M.commander_hp(cmd_lvl, moves, prestige)
 	local base = M.BASE_HP + ((cmd_lvl or 1) - 1) * M.HP_PER_COMMANDER_LVL + math.floor((prestige or 0) / 40) * 6
-	return math.floor(base * (1 + M.MOVE_HP_BONUS * ((moves or 1) - 1)) + 0.5)
+	return math.floor(base * M.HP_SCALE * (1 + M.MOVE_HP_BONUS * ((moves or 1) - 1)) + 0.5)
 end
 
 M.MIN_MOVES = 1

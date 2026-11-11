@@ -897,6 +897,36 @@ function drawWolf(c, cx, cy, s) {
   t.fill(rbox(48, 22, 30, 6, 4), H('#ffffff', 0.12));
   t.save('tab_active');
 }
+{ // icon_skull (fallen squad)
+  const c = canvas(64, 64);
+  const head = union(circle(32, 27, 19), rbox(32, 44, 11, 9, 4));
+  const holes = union(ellipse(24, 28, 5.5, 6.5), ellipse(40, 28, 5.5, 6.5), poly([[32, 34], [28.5, 40], [35.5, 40]], 0.5));
+  c.outlined(head, vgrad(H('#f6f0e2'), H('#b9b0a0'), 8, 54), 3);
+  c.fill(holes, H('#1a1d29'));
+  for (const tx of [26.5, 32, 37.5]) c.fill(rbox(tx, 49, 1, 4, 0.5), H('#1a1d29', 0.85));
+  c.fill(ellipse(25, 18, 6, 3), H('#ffffff', 0.35));
+  c.save('icon_skull');
+}
+{ // band 128x64: soft-edged horizontal ribbon (turn banner), white to tint
+  const c = canvas(128, 64);
+  c.fill((x, y) => -1, (x, y) => {
+    const ex = clamp01(Math.min(x, 128 - x) / 26);
+    const ey = clamp01(Math.min(y - 6, 58 - y) / 3);
+    const line = (Math.abs(y - 8) < 1.6 || Math.abs(y - 56) < 1.6) ? 1 : 0;
+    const body = 0.82 - 0.18 * Math.abs(y - 32) / 26;
+    return [1, 1, 1, ex * Math.max(line, ey * body)];
+  });
+  c.save('band');
+}
+{ // reticle (target marker), white to tint
+  const c = canvas(64, 64);
+  c.stroke(circle(32, 32, 22), H('#ffffff'), 4);
+  for (const [ax, ay, bx, by] of [[32, 2, 32, 14], [32, 50, 32, 62], [2, 32, 14, 32], [50, 32, 62, 32]]) {
+    c.fill(capsule(ax, ay, bx, by, 2.6), H('#ffffff'));
+  }
+  c.fill(circle(32, 32, 4), H('#ffffff'));
+  c.save('reticle');
+}
 
 // ======================================================================= IMPORT NANO BANANA ART
 const ART_DIR = 'main/assets/art';

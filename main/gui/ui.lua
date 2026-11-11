@@ -72,6 +72,12 @@ end
 function M.close_layer(layer)
 	local d = M.layers[layer]
 	if d then
+		-- Druid schedules late_init (button stencil lookup) with timer.delay(0) and final() does not
+		-- cancel it: a layer opened and closed within one frame would hit its deleted nodes.
+		if d._late_init_timer_id then
+			timer.cancel(d._late_init_timer_id)
+			d._late_init_timer_id = nil
+		end
 		d:final()
 		M.layers[layer] = nil
 	end
@@ -139,7 +145,7 @@ function M.text(parent, str, x, y, size, color, outline)
 end
 
 -- Druid text that auto-downscales into max_w (and optional multi-line area).
--- opts: lines (multi-line count), adjust ("downscale"|"trim"...), pivot, outline
+-- opts: lines (multi-line count), adjust ("downscale"|"trim"...), pivot, outline, plain
 function M.label(parent, str, x, y, size, color, max_w, opts)
 	opts = opts or {}
 	local n = M.text(parent, str, x, y, size, color, opts.outline)
@@ -149,6 +155,8 @@ function M.label(parent, str, x, y, size, color, max_w, opts)
 	local lines = opts.lines or 1
 	gui.set_line_break(n, lines > 1)
 	gui.set_size(n, V3(max_w / s, M.FONT_SIZE * (lines > 1 and (1.25 * lines + 0.2) or 1.6), 0))
+	-- plain: no Druid component (nodes that get deleted outside of a layer close)
+	if opts.plain then return n end
 	local t = M.druid and M.druid:new_text(n, str, opts.adjust or "downscale") or nil
 	return n, t
 end

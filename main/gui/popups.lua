@@ -310,94 +310,151 @@ B.chest_info = function(app, root, data)
 	end, { icon = "icon_diamond", icon_size = 32 })
 end
 
--- ---------------------------------------------------------------- card details
+-- ---------------------------------------------------------------- card details (Clash Royale style)
+local STYLE_ICON = { melee = "icon_pvp", ranged = "proj_arrow", magic = "proj_spell" }
+
+-- 2-column grid of stat boxes: { icon, label, value, next_value } from y downward; returns height.
+local function stat_grid(p, stats, cx, y, w)
+	local cw = (w - 12) / 2
+	local chh = 66
+	for i, sd in ipairs(stats) do
+		local col = (i - 1) % 2
+		local row = math.floor((i - 1) / 2)
+		local sx = cx + (col - 0.5) * (cw + 12)
+		local sy = y - chh / 2 - row * (chh + 10)
+		local box = ui.slice(p, "panel_dark", sx, sy, cw, chh, ui.WHITE, 14)
+		ui.icon(box, sd[1], -cw / 2 + 30, 0, 38)
+		ui.label(box, sd[2], -cw / 2 + 58, 15, 16, ui.DIM, cw - 70, { pivot = gui.PIVOT_W })
+		ui.label(box, tostring(sd[3]), -cw / 2 + 58, -12, 23, ui.BONE, cw - 130, { pivot = gui.PIVOT_W })
+		if sd[4] and sd[4] ~= sd[3] then
+			ui.label(box, "+" .. (sd[4] - sd[3]), cw / 2 - 12, -12, 21, ui.GREEN, 72, { pivot = gui.PIVOT_E })
+		end
+	end
+	local rows = math.ceil(#stats / 2)
+	return rows * (chh + 10) - 10
+end
+
 B.card = function(app, root, data)
 	local sq = squads.get(data.id)
 	local d = progress.data
 	local c = d.cards[sq.id]
 	progress.mark_seen(sq.id)
-	local p, w, h = panel(root, app, 580, 820, i18n.t("SQ_" .. sq.id))
+	local land = app.orient == "landscape"
+	-- Portrait panel height follows the content (trait line / skill box are optional)
+	local ph = 96 + 250 + 22 + 142 + 12 + ((sq.trait and sq.trait ~= "none") and 34 or 0) + ((sq.skill and sq.runes) and 98 or 0) + 210
+	local p, w, h = panel(root, app, land and 980 or 620, land and 660 or ph, i18n.t("SQ_" .. sq.id))
 	close_btn(app, p, w, h)
-	local top = h / 2 - 90
-	local frame = ui.slice(p, ui.RARITY_FRAME[sq.rarity], 0, top - 100, 220, 190, ui.WHITE, 20)
-	local gl = ui.glow(ui.box(frame, "glow", 0, 0, 300, 260, ui.RARITY_COLOR[sq.rarity]))
-	gui.set_alpha(gl, 0.25)
-	local art = ui.icon(frame, sq.sprite, 0, 0, 150, c.unlocked and ui.WHITE or V4(0.4, 0.4, 0.5, 1))
+	local rar = ui.RARITY_COLOR[sq.rarity] or ui.BONE
+	local lvl = c.level
+	local req = squads.upgrade_req(sq.id, lvl)
+	local gcost = squads.upgrade_gold(sq.id, lvl)
+	local has_next = c.unlocked and req ~= nil
+
+	-- Column geometry: portrait = one column; landscape = card on the left, details on the right
+	local card_w, card_h = land and 240 or 200, land and 300 or 250
+	local card_x, card_y, col_cx, col_w, y
+	if land then
+		card_x, card_y = -w / 2 + 40 + card_w / 2, 30
+		col_w = w - card_w - 120
+		col_cx = w / 2 - 40 - col_w / 2
+		y = h / 2 - 70
+	else
+		card_x, card_y = 0, h / 2 - 96 - card_h / 2
+		col_w = w - 60
+		col_cx = 0
+		y = card_y - card_h / 2 - 22
+	end
+	local rays = ui.glow(ui.box(p, "rays", card_x, card_y, card_w * 1.9, card_w * 1.9, V4(rar.x, rar.y, rar.z, 0.22)))
+	ui.spin(rays, 14)
+	local card = ui.slice(p, ui.RARITY_FRAME[sq.rarity], card_x, card_y, card_w, card_h, ui.WHITE, 20)
+	local art = ui.icon(card, sq.sprite, 0, 8, card_w * 0.82, c.unlocked and ui.WHITE or V4(0.08, 0.09, 0.14, 0.92))
 	ui.bob(art, 5, 1)
-	local y = top - 222
-	ui.label(p, i18n.t("RARITY_" .. sq.rarity) .. "  |  " .. i18n.t("LVL_FMT", { n = c.level }), 0, y, 22, ui.RARITY_COLOR[sq.rarity], w - 60)
-	y = y - 40
-	local atk = squads.power(sq.id, c.level)
-	local nxt = squads.power(sq.id, c.level + 1)
-	local req = squads.upgrade_req(sq.id, c.level)
-	ui.box(p, "icon_sword", -150, y, 34, 34)
-	ui.label(p, i18n.t("ATK_FMT", { n = atk }) .. ((c.unlocked and req) and ("  ->  " .. nxt) or ""), 10, y, 22, ui.BONE, w - 200)
-	y = y - 36
-	ui.label(p, i18n.t("SLOT_" .. sq.color) .. " | " .. i18n.t("STYLE_" .. sq.style), 0, y, 17, ui.DIM, w - 60)
-	y = y - 30
+	ui.box(card, ui.GEM_SPRITE[sq.color], -card_w / 2 + 24, card_h / 2 - 24, 34, 34)
+	local tag = i18n.t("RARITY_" .. sq.rarity) .. (c.unlocked and ("  |  " .. i18n.t("LVL_FMT", { n = lvl })) or "")
+	if land then
+		ui.label(p, tag, card_x, card_y - card_h / 2 - 26, 22, rar, card_w + 40)
+		ui.label(p, i18n.t("SLOT_" .. sq.color), card_x, card_y - card_h / 2 - 58, 17, ui.DIM, card_w + 40)
+	else
+		ui.label(p, tag, 0, h / 2 - 76, 22, rar, w - 120)
+	end
+
+	-- Stats (green +N = what the next level gives)
+	-- Every card upgrade also raises the commander level (+HP for the whole team)
+	local cmd_next = config.commander_hp((d.commander_lvl or 1) + 1, d.max_moves, d.prestige)
+	local stats = {
+		{ "icon_sword", i18n.t("STAT_DMG"), squads.power(sq.id, lvl), has_next and squads.power(sq.id, lvl + 1) or nil },
+		{ "icon_star", i18n.t("STAT_SKILL"), squads.skill_power(sq.id, lvl), has_next and squads.skill_power(sq.id, lvl + 1) or nil },
+		{ STYLE_ICON[sq.style] or "icon_sword", i18n.t("STAT_TYPE"), i18n.t("STYLE_" .. sq.style) },
+		{ "icon_heart", i18n.t("STAT_CMD_HP"), progress.hero_hp(), has_next and cmd_next or nil },
+	}
+	y = y - stat_grid(p, stats, col_cx, y, col_w) - 12
 	if sq.trait and sq.trait ~= "none" then
-		ui.label(p, i18n.t("TRAIT_" .. sq.trait), 0, y, 17, ui.GREEN, w - 60)
-		y = y - 30
+		ui.label(p, i18n.t("TRAIT_" .. sq.trait), col_cx, y - 12, 18, ui.GREEN, col_w)
+		y = y - 34
 	end
 	if sq.skill and sq.runes then
-		local sk = ui.slice(p, "panel_dark", 0, y - 46, w - 50, 90, ui.WHITE, 16)
-		ui.box(sk, ui.GEM_SPRITE[sq.runes[1]], -w / 2 + 60, 14, 30, 30)
-		ui.text(sk, "+", -w / 2 + 86, 14, 20, ui.DIM)
-		ui.box(sk, ui.GEM_SPRITE[sq.runes[2]], -w / 2 + 112, 14, 30, 30)
-		ui.label(sk, i18n.t("SKILL_FMT", { name = i18n.t("SK_" .. sq.skill.id), dmg = squads.skill_power(sq.id, c.level) }), 50, 14, 18, ui.DIAMOND, w - 210)
-		ui.label(sk, i18n.t("RUNE_HINT"), 0, -22, 15, ui.DIM, w - 80)
-		y = y - 106
+		local sk = ui.slice(p, "panel_dark", col_cx, y - 44, col_w, 86, ui.WHITE, 16)
+		local rx = -col_w / 2 + 34
+		for k = 1, 2 do
+			ui.box(sk, "rune_bg", rx + (k - 1) * 40, 0, 38, 38)
+			ui.box(sk, ui.GEM_SPRITE[sq.runes[k]], rx + (k - 1) * 40, 0, 28, 28)
+		end
+		ui.label(sk, i18n.t("SK_" .. sq.skill.id), -col_w / 2 + 92, 14, 19, ui.DIAMOND, col_w - 110, { pivot = gui.PIVOT_W })
+		ui.label(sk, i18n.t("RUNE_HINT"), -col_w / 2 + 92, -16, 15, ui.DIM, col_w - 110, { pivot = gui.PIVOT_W })
+		y = y - 98
 	end
+
+	-- Card count bar + buttons
 	local by = -h / 2 + 60
+	local half = (col_w - 16) / 2
 	if c.unlocked then
-		local gcost = squads.upgrade_gold(sq.id, c.level)
 		if req then
-			ui.bar(p, 0, by + 100, w - 160, 30, math.min(1, c.count / req), progress.can_upgrade_card(sq.id) and ui.GREEN or ui.BLUE,
-				{ text = c.count .. " / " .. req, text_size = 19 })
+			local can = progress.can_upgrade_card(sq.id)
+			local bar = ui.bar(p, col_cx, by + 84, col_w - 40, 32, math.min(1, c.count / req), can and ui.GREEN or ui.BLUE,
+				{ text = c.count .. " / " .. req, text_size = 20 })
+			ui.icon(bar.bg, "icon_cards", -(col_w - 40) / 2 - 4, 0, 40)
 		end
 		local is_eq = d.slots[sq.color] == sq.id
-		local half = (w - 100) / 2
-		ui.btn(p, is_eq and "btn_dark" or "btn_purple", -half / 2 - 10, by, half, 76, i18n.t(is_eq and "EQUIPPED" or "EQUIP"), 22, function()
+		ui.btn(p, is_eq and "btn_dark" or "btn_purple", col_cx - half / 2 - 8, by, half, 78, i18n.t(is_eq and "EQUIPPED" or "EQUIP"), 24, function()
 			if not is_eq and progress.assign_slot(sq.id) then
 				audio.play("shield")
 				app.close_popup()
 				app.rebuild()
 			end
-		end)
+		end, { icon = is_eq and "icon_check" or ui.GEM_SPRITE[sq.color], icon_size = 34 })
 		if req and gcost then
 			local can = progress.can_upgrade_card(sq.id)
-			local nb = ui.btn(p, can and "btn_gold" or "btn_dark", half / 2 + 10, by, half, 76, i18n.t("UPGRADE", { g = gcost }), 20, function()
+			local nb = ui.btn(p, can and "btn_gold" or "btn_dark", col_cx + half / 2 + 8, by, half, 78, i18n.t("UPGRADE", { g = gcost }), 22, function()
 				if progress.upgrade_card(sq.id) then
 					audio.play("levelup")
-					app.open_popup("levelup", { kind = "card", id = sq.id })
-					app.rebuild()
+					app.refresh_then_popup("levelup", { kind = "card", id = sq.id })
 				else
 					audio.play("blocked")
-					ui.float_text(p, i18n.t(c.count < req and "NEED_CARDS" or "NEED_GOLD"), half / 2 + 10, by + 60, 20, ui.RED, 30)
+					ui.float_text(p, i18n.t(c.count < req and "NEED_CARDS" or "NEED_GOLD"), col_cx + half / 2 + 8, by + 60, 20, ui.RED, 30)
 				end
-			end, { icon = "icon_gold", icon_size = 30 })
+			end, { icon = "icon_gold", icon_size = 32 })
 			if can then
 				ui.pulse(nb, 1.05, 0.45)
 				if d.onboarding_step == 1 then
-					local hand = ui.box(p, "icon_hand", half / 2 + 40, by - 30, 64, 64)
+					local hand = ui.box(p, "icon_hand", col_cx + half / 2 + 40, by - 30, 64, 64)
 					ui.pulse(hand, 1.2, 0.4)
 				end
 			end
 		else
-			ui.label(p, i18n.t("MAX"), half / 2 + 10, by, 26, ui.GOLD, half)
+			ui.label(p, i18n.t("MAX"), col_cx + half / 2 + 8, by, 28, ui.GOLD, half)
 		end
 	else
-		ui.btn(p, "btn_purple", 0, by, w - 140, 78, i18n.t("BUY_CARD", { d = squads.unlock_diamonds(sq.id) }), 24, function()
+		ui.label(p, i18n.t("FIND_IN_CHESTS"), col_cx, by + 76, 18, ui.DIM, col_w)
+		ui.btn(p, "btn_purple", col_cx, by, col_w - 60, 78, i18n.t("BUY_CARD", { d = squads.unlock_diamonds(sq.id) }), 24, function()
 			if progress.buy_locked_card(sq.id) then
 				audio.play("levelup")
 				app.close_popup()
 				app.rebuild()
 			else
 				audio.play("blocked")
-				ui.float_text(p, i18n.t("NEED_DIAMONDS"), 0, by + 60, 20, ui.RED, 30)
+				ui.float_text(p, i18n.t("NEED_DIAMONDS"), col_cx, by + 60, 20, ui.RED, 30)
 			end
 		end, { icon = "icon_diamond", icon_size = 34 })
-		ui.label(p, i18n.t("FIND_IN_CHESTS"), 0, by + 70, 17, ui.DIM, w - 60)
 	end
 end
 
@@ -595,28 +652,53 @@ B.reward = function(app, root, data)
 end
 
 B.levelup = function(app, root, data)
-	local p, w, h = panel(root, app, 560, 560, i18n.t(data.kind == "moves" and "MOVES_UP" or "LEVEL_UP"))
-	local rays = ui.glow(ui.box(p, "rays", 0, 60, 460, 460, V4(0.5, 1, 0.6, 0.35)))
+	local p, w, h = panel(root, app, 580, 620, i18n.t(data.kind == "moves" and "MOVES_UP" or "LEVEL_UP"))
+	local rays = ui.glow(ui.box(p, "rays", 0, 80, 480, 480, V4(0.5, 1, 0.6, 0.35)))
 	ui.spin(rays, 9)
-	ui.confetti(app.popup_root, app.vw / 2, app.vh + 40, app.vw, 30)
+	ui.confetti(app.popup_root, app.vw / 2, app.vh + 40, app.vw, 34)
 	local d = progress.data
 	if data.kind == "moves" then
 		for i = 1, d.max_moves do
-			local o = ui.box(p, "icon_move_orb", (i - (d.max_moves + 1) / 2) * 56, 80, 50, 50)
+			local ox = (i - (d.max_moves + 1) / 2) * 56
+			local o = ui.box(p, "icon_move_orb", ox, 110, 50, 50)
 			ui.pop(o, 0.1, 1, 0.3, i * 0.06)
-			if i == d.max_moves then ui.after(0.5, function() ui.burst(p, (i - (d.max_moves + 1) / 2) * 56, 80, 12, ui.BLUE, 90, 24) end) end
+			if i == d.max_moves then ui.after(0.5, function() ui.burst(p, ox, 110, 12, ui.BLUE, 90, 24) end) end
 		end
-		ui.label(p, i18n.t("MOVES_FMT", { n = d.max_moves }), 0, -10, 30, ui.BONE, w - 60)
+		ui.label(p, i18n.t("MOVES_FMT", { n = d.max_moves }), 0, 30, 30, ui.BONE, w - 60)
+		local row = ui.slice(p, "panel_dark", 0, -40, w - 80, 60, ui.WHITE, 14)
+		ui.icon(row, "icon_heart", -(w - 80) / 2 + 34, 0, 36)
+		ui.label(row, i18n.t("CMD_HP", { n = progress.hero_hp() }), 20, 0, 22, ui.GREEN, w - 180)
 	else
 		local sq = squads.get(data.id)
 		local c = d.cards[sq.id]
-		local art = ui.icon(p, sq.sprite, 0, 80, 170)
-		ui.pop(art, 0.3, 1, 0.4)
-		ui.label(p, i18n.t("SQ_" .. sq.id) .. "  " .. i18n.t("LVL_FMT", { n = c.level }), 0, -30, 26, ui.GOLD, w - 60)
-		ui.label(p, i18n.t("ATK_FMT", { n = squads.power(sq.id, c.level) }), 0, -66, 22, ui.BONE, w - 60)
+		local old = math.max(1, c.level - 1)
+		local card = ui.slice(p, ui.RARITY_FRAME[sq.rarity], 0, 110, 170, 210, ui.WHITE, 18)
+		ui.icon(card, sq.sprite, 0, 10, 140)
+		ui.pop(card, 0.3, 1, 0.45)
+		local rib = ui.slice(card, "panel_dark", 0, -105, 120, 36, ui.WHITE, 12)
+		local lv = ui.text(rib, i18n.t("LVL_FMT", { n = old }), 0, 2, 22, ui.GOLD)
+		ui.after(0.55, function()
+			gui.set_text(lv, i18n.t("LVL_FMT", { n = c.level }))
+			ui.pop(rib, 1.6, 1, 0.3)
+			ui.burst(p, 0, 5, 16, ui.GOLD, 110, 26)
+			audio.play("star", 0.9, 1.1)
+		end)
+		local rows = {
+			{ "icon_sword", i18n.t("STAT_DMG"), squads.power(sq.id, old), squads.power(sq.id, c.level), ui.GOLD },
+			{ "icon_heart", i18n.t("STAT_CMD_HP"), config.commander_hp(math.max(1, (d.commander_lvl or 1) - 1), d.max_moves, d.prestige), progress.hero_hp(), ui.GREEN },
+		}
+		for i, r in ipairs(rows) do
+			local ry = -50 - (i - 1) * 66
+			local rw = w - 80
+			local row = ui.slice(p, "panel_dark", 0, ry, rw, 58, ui.WHITE, 14)
+			ui.icon(row, r[1], -rw / 2 + 34, 0, 36)
+			ui.label(row, r[2], -rw / 2 + 64, 0, 19, ui.DIM, 170, { pivot = gui.PIVOT_W })
+			local val = ui.text(row, tostring(r[3]), rw / 2 - 60, 0, 26, ui.BONE)
+			ui.count_up(val, r[3], r[4], 0.6)
+			ui.after(0.7, function() gui.set_color(val, r[5]); ui.pop(val, 1.4, 1, 0.25) end)
+			ui.text(row, "+" .. (r[4] - r[3]), rw / 2 - 140, 0, 20, ui.GREEN)
+		end
 	end
-	ui.box(p, "icon_heart", -110, -110, 34, 34)
-	ui.label(p, i18n.t("CMD_HP", { n = progress.hero_hp() }), 20, -110, 22, ui.GREEN, w - 200)
 	ui.btn(p, "btn_gold", 0, -h / 2 + 62, w - 180, 76, i18n.t("CONTINUE"), 26, function()
 		app.close_popup()
 		if d.onboarding_done and d.onboarding_step == 2 and not d.tut_finished then

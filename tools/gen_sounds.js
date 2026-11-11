@@ -89,6 +89,12 @@ const SOUNDS = [
   ['flip', 0.12, (t, d) => (noise() * 0.5 * Math.exp(-t * 40) + sine(900 - t * 3000, t) * 0.25) * env(t, d)],
   ['turn', 0.5, (t) => (bell(220, t, 4) * 0.35 + bell(330, t, 5) * 0.2)],
   ['notify', 0.25, (t) => bell(1568, t, 10) * 0.3],
+  // --- squads vs squads
+  ['death', 0.6, (t, d) => (tri(95 * Math.exp(-t * 2.5), t) * 0.55 + noise() * 0.45 * Math.exp(-t * 7)
+    + bell(196, t, 6) * 0.2) * Math.min(1, t * 120) * (1 - t / d)],
+  ['crit', 0.22, (t, d) => (bell(1245, t, 16) * 0.35 + noise() * 0.4 * Math.exp(-t * 30) + tri(180 * Math.exp(-t * 9), t) * 0.35) * env(t, d)],
+  ['turn_you', 0.55, (t) => (bell(523, t, 6) * 0.3 + (t > 0.09 ? bell(784, t - 0.09, 5) * 0.32 : 0) + bell(1046, t, 9) * 0.08)],
+  ['turn_enemy', 0.6, (t) => (bell(147, t, 3) * 0.42 + bell(208, t, 4) * 0.22 + noise() * 0.06 * Math.exp(-t * 10))],
 ];
 
 for (const [name, dur, fn] of SOUNDS) writeWav(name, dur, fn);
