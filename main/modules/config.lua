@@ -8,13 +8,13 @@ M.ATTACK_COLORS = { "red", "yellow", "purple" }
 
 M.BASE_HP = 160
 M.HP_PER_COMMANDER_LVL = 24
-M.MOVE_HP_BONUS = 0.22  -- every extra move per turn also gives +22% commander HP
+M.MOVE_HP_BONUS = 0.12  -- every extra move per turn also gives +12% commander HP
 M.SHIELD_CAP_RATIO = 0.65
 M.HEAL_RATIO = 0.10     -- green 3-match heals 10% of max HP
 M.SHIELD_RATIO = 0.10   -- blue 3-match gives 10% of max HP as shield
 M.FURY_TURN = 8 -- from turn 8+, damage +20% per turn so battles always end
 
-M.HP_SCALE = 1.0 -- global HP scale for both sides (battle length; enemies derive from commander_hp)
+M.HP_SCALE = 1.35 -- global HP scale for both sides (battle length; enemies derive from commander_hp)
 
 -- Commander max HP from commander level (card upgrades), moves per turn and prestige.
 function M.commander_hp(cmd_lvl, moves, prestige)
