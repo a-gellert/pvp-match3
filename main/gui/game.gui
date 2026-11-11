@@ -1,0 +1,12 @@
+script: "/main/gui/game.gui_script"
+fonts {
+  name: "main"
+  font: "/main/assets/fonts/main.font"
+}
+textures {
+  name: "game"
+  texture: "/main/assets/game.atlas"
+}
+material: "/builtins/materials/gui.material"
+adjust_reference: ADJUST_REFERENCE_DISABLED
+max_nodes: 4096

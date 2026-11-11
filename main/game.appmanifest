@@ -1,0 +1,13 @@
+platforms:
+  wasm-web:
+    context:
+      excludeLibs: [physics, LinearMath, BulletDynamics, BulletCollision, script_bullet3d, box2d_defold, script_box2d_defold, gamesys_model, gamesys_rig, rig, gamesys_particle, particle, record, vpx, profile, profilerext, profiler_remotery, profiler_js, liveupdate, image, graphics_transcoder_basisu, basis_transcoder, font_richtext]
+      excludeSymbols: [ScriptBullet3DExt, ScriptBox2DExt, ScriptModelExt, ResourceTypeParticleFX, ComponentTypeParticleFX, ScriptLibParticleFX, ResourceTypeTileMap, ComponentTypeTileMap, ScriptLibTileMap, ProfilerBasic, ProfilerRemotery, ProfilerJS, ScriptImageExt, ScriptTypesExt]
+      symbols: []
+      libs: [physics_null, gamesys_rig_null, gamesys_model_null, rig_null, particle_null, record_null, profile_null, profilerext_null, liveupdate_null, image_null, graphics_transcoder_null, font_richtext_null]
+  wasm_pthread-web:
+    context:
+      excludeLibs: [physics, LinearMath, BulletDynamics, BulletCollision, script_bullet3d, box2d_defold, script_box2d_defold, gamesys_model, gamesys_rig, rig, gamesys_particle, particle, record, vpx, profile, profilerext, profiler_remotery, profiler_js, liveupdate, image, graphics_transcoder_basisu, basis_transcoder, font_richtext]
+      excludeSymbols: [ScriptBullet3DExt, ScriptBox2DExt, ScriptModelExt, ResourceTypeParticleFX, ComponentTypeParticleFX, ScriptLibParticleFX, ResourceTypeTileMap, ComponentTypeTileMap, ScriptLibTileMap, ProfilerBasic, ProfilerRemotery, ProfilerJS, ScriptImageExt, ScriptTypesExt]
+      symbols: []
+      libs: [physics_null, gamesys_rig_null, gamesys_model_null, rig_null, particle_null, record_null, profile_null, profilerext_null, liveupdate_null, image_null, graphics_transcoder_null, font_richtext_null]

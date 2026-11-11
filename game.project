@@ -1,0 +1,42 @@
+[bootstrap]
+main_collection = /main/main.collectionc
+render = /main/render/game.renderc
+
+[script]
+shared_state = 1
+
+[display]
+width = 540
+height = 960
+high_dpi = 1
+
+[render]
+clear_color_red = 0.067
+clear_color_green = 0.082
+clear_color_blue = 0.129
+clear_color_alpha = 1.0
+
+[graphics]
+default_texture_min_filter = linear
+default_texture_mag_filter = linear
+
+[input]
+game_binding = /input/game.input_bindingc
+
+[android]
+input_method = HiddenInputField
+
+[html5]
+scale_mode = stretch
+wasm_streaming = 1
+show_fullscreen_button = 0
+show_made_with_defold = 0
+cssfile = /main/html5/dark.css
+heap_size = 64
+
+[native_extension]
+app_manifest = /main/game.appmanifest
+
+[project]
+title = Gem Vanguard
+dependencies#0 = https://github.com/defold/extension-poki-sdk/archive/refs/heads/main.zip

@@ -1,0 +1,9 @@
+/.editor_settings
+/.internal
+/build
+/bundle
+/out_smoke
+poki.zip
+preview_*.png
+.DS_Store
+Thumbs.db

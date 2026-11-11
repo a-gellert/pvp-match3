@@ -1,0 +1,39 @@
+-- GUI-only renderer. The GUI is laid out in virtual units (main/modules/layout.lua),
+-- the projection maps the virtual canvas onto the whole window.
+local layout = require "main.modules.layout"
+
+local IDENTITY = vmath.matrix4()
+
+function init(self)
+	self.gui_pred = render.predicate({ "gui" })
+	self.clear_color = vmath.vector4(
+		sys.get_config_number("render.clear_color_red", 0.067),
+		sys.get_config_number("render.clear_color_green", 0.082),
+		sys.get_config_number("render.clear_color_blue", 0.129),
+		1)
+end
+
+function update(self)
+	render.set_depth_mask(true)
+	render.set_stencil_mask(0xff)
+	render.clear({
+		[graphics.BUFFER_TYPE_COLOR0_BIT] = self.clear_color,
+		[graphics.BUFFER_TYPE_DEPTH_BIT] = 1,
+		[graphics.BUFFER_TYPE_STENCIL_BIT] = 0,
+	})
+	local w, h = render.get_window_width(), render.get_window_height()
+	if w <= 0 or h <= 0 then return end
+	local vw, vh = layout.virtual_size(w, h)
+	local proj = vmath.matrix4_orthographic(0, vw, 0, vh, -1, 1)
+	render.set_viewport(0, 0, w, h)
+	render.set_depth_mask(false)
+	render.disable_state(graphics.STATE_DEPTH_TEST)
+	render.disable_state(graphics.STATE_CULL_FACE)
+	render.enable_state(graphics.STATE_BLEND)
+	render.set_blend_func(graphics.BLEND_FACTOR_SRC_ALPHA, graphics.BLEND_FACTOR_ONE_MINUS_SRC_ALPHA)
+	render.enable_state(graphics.STATE_STENCIL_TEST)
+	render.set_view(IDENTITY)
+	render.set_projection(proj)
+	render.draw(self.gui_pred, { frustum = proj })
+	render.disable_state(graphics.STATE_STENCIL_TEST)
+end

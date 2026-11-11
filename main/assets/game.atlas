@@ -1,0 +1,228 @@
+images {
+  image: "/main/assets/images/panel_dark.png"
+}
+images {
+  image: "/main/assets/images/panel_stone.png"
+}
+images {
+  image: "/main/assets/images/card_common.png"
+}
+images {
+  image: "/main/assets/images/card_rare.png"
+}
+images {
+  image: "/main/assets/images/card_epic.png"
+}
+images {
+  image: "/main/assets/images/btn_gold.png"
+}
+images {
+  image: "/main/assets/images/btn_purple.png"
+}
+images {
+  image: "/main/assets/images/btn_crimson.png"
+}
+images {
+  image: "/main/assets/images/btn_dark.png"
+}
+images {
+  image: "/main/assets/images/btn_round.png"
+}
+images {
+  image: "/main/assets/images/cell_bg.png"
+}
+images {
+  image: "/main/assets/images/bar_bg.png"
+}
+images {
+  image: "/main/assets/images/bar_fill.png"
+}
+images {
+  image: "/main/assets/images/square.png"
+}
+images {
+  image: "/main/assets/images/glow.png"
+}
+images {
+  image: "/main/assets/images/spark.png"
+}
+images {
+  image: "/main/assets/images/ring.png"
+}
+images {
+  image: "/main/assets/images/puff.png"
+}
+images {
+  image: "/main/assets/images/gem_red.png"
+}
+images {
+  image: "/main/assets/images/gem_yellow.png"
+}
+images {
+  image: "/main/assets/images/gem_purple.png"
+}
+images {
+  image: "/main/assets/images/gem_green.png"
+}
+images {
+  image: "/main/assets/images/gem_blue.png"
+}
+images {
+  image: "/main/assets/images/spec_line_h.png"
+}
+images {
+  image: "/main/assets/images/spec_line_v.png"
+}
+images {
+  image: "/main/assets/images/spec_bomb.png"
+}
+images {
+  image: "/main/assets/images/gem_prism.png"
+}
+images {
+  image: "/main/assets/images/chest_wood.png"
+}
+images {
+  image: "/main/assets/images/chest_silver.png"
+}
+images {
+  image: "/main/assets/images/chest_royal.png"
+}
+images {
+  image: "/main/assets/images/face_hero.png"
+}
+images {
+  image: "/main/assets/images/face_goblin.png"
+}
+images {
+  image: "/main/assets/images/face_skeleton.png"
+}
+images {
+  image: "/main/assets/images/face_orc.png"
+}
+images {
+  image: "/main/assets/images/face_necromancer.png"
+}
+images {
+  image: "/main/assets/images/face_dragon.png"
+}
+images {
+  image: "/main/assets/images/squad_red_militia.png"
+}
+images {
+  image: "/main/assets/images/squad_red_wolves.png"
+}
+images {
+  image: "/main/assets/images/squad_red_berserk.png"
+}
+images {
+  image: "/main/assets/images/squad_yellow_archers.png"
+}
+images {
+  image: "/main/assets/images/squad_yellow_crossbow.png"
+}
+images {
+  image: "/main/assets/images/squad_yellow_paladin.png"
+}
+images {
+  image: "/main/assets/images/squad_purple_cultists.png"
+}
+images {
+  image: "/main/assets/images/squad_purple_necro.png"
+}
+images {
+  image: "/main/assets/images/squad_purple_golem.png"
+}
+images {
+  image: "/main/assets/images/icon_gold.png"
+}
+images {
+  image: "/main/assets/images/icon_diamond.png"
+}
+images {
+  image: "/main/assets/images/icon_prestige.png"
+}
+images {
+  image: "/main/assets/images/icon_move_orb.png"
+}
+images {
+  image: "/main/assets/images/icon_sword.png"
+}
+images {
+  image: "/main/assets/images/icon_shield.png"
+}
+images {
+  image: "/main/assets/images/icon_heart.png"
+}
+images {
+  image: "/main/assets/images/boost_shuffle.png"
+}
+images {
+  image: "/main/assets/images/boost_hammer.png"
+}
+images {
+  image: "/main/assets/images/boost_moves.png"
+}
+images {
+  image: "/main/assets/images/icon_ad.png"
+}
+images {
+  image: "/main/assets/images/icon_pause.png"
+}
+images {
+  image: "/main/assets/images/icon_close.png"
+}
+images {
+  image: "/main/assets/images/icon_check.png"
+}
+images {
+  image: "/main/assets/images/icon_lock.png"
+}
+images {
+  image: "/main/assets/images/icon_gear.png"
+}
+images {
+  image: "/main/assets/images/icon_hand.png"
+}
+images {
+  image: "/main/assets/images/icon_pvp.png"
+}
+images {
+  image: "/main/assets/images/icon_map.png"
+}
+images {
+  image: "/main/assets/images/icon_cards.png"
+}
+images {
+  image: "/main/assets/images/icon_sound.png"
+}
+images {
+  image: "/main/assets/images/icon_sound_off.png"
+}
+images {
+  image: "/main/assets/images/icon_music.png"
+}
+images {
+  image: "/main/assets/images/icon_music_off.png"
+}
+images {
+  image: "/main/assets/images/icon_globe.png"
+}
+images {
+  image: "/main/assets/images/arena_bg.png"
+}
+images {
+  image: "/main/assets/images/fx_slash.png"
+}
+images {
+  image: "/main/assets/images/proj_arrow.png"
+}
+images {
+  image: "/main/assets/images/proj_bolt.png"
+}
+images {
+  image: "/main/assets/images/proj_spell.png"
+}
+margin: 2
+extrude_borders: 2
+inner_padding: 0

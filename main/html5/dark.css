@@ -1,0 +1,28 @@
+	.canvas-app-progress {
+		position: absolute;
+		background-color: #1c2233;
+		height: 6px;
+		margin-top: -6px;
+		width: 100%;
+	}
+
+	.canvas-app-progress-bar {
+		font-size: 12px;
+		height: 6px;
+		color: rgb(255, 255, 255);
+		background-color: #e8b84b;
+		text-align: center;
+		line-height: 20px;
+		transition: transform 1s ease;
+		transform-origin: left;
+		transform: scaleX(1.0);
+	}
+
+	body {
+		background-color: #111521;
+	}
+
+	.canvas-app-container {
+		background: #111521;
+		background: linear-gradient(180deg, #1a2033 0%, #0d1019 100%);
+	}
