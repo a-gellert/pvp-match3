@@ -3,9 +3,9 @@
 local M = {}
 
 local URL = "main:/sounds#"
+-- Only the "sfx" group exists in main/sounds.go; music/master live in WebAudio (window._gvAudio).
+-- Calling sound.set_group_gain on a missing group logs "Failed to set group gain (-13)".
 local SFX = hash("sfx")
-local MUSIC = hash("music")
-local MASTER = hash("master")
 local MUSIC_GAIN = 0.55
 
 local LAZY_FALLBACK = {
@@ -59,7 +59,6 @@ end
 
 local function apply()
 	pcall(sound.set_group_gain, SFX, sound_on and 1 or 0)
-	pcall(sound.set_group_gain, MUSIC, music_on and MUSIC_GAIN or 0)
 	sync_web_gains()
 end
 
@@ -131,7 +130,7 @@ end
 -- Poki: all audio must be silent while an ad is playing.
 function M.ad_mute(muted)
 	ad_muted = muted
-	pcall(sound.set_group_gain, MASTER, muted and 0 or 1)
+	pcall(sound.set_group_gain, SFX, (sound_on and not muted) and 1 or 0)
 	sync_web_gains()
 end
 

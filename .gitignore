@@ -3,7 +3,9 @@
 /build
 /bundle
 /out_smoke
+/out
 poki.zip
 preview_*.png
 .DS_Store
 Thumbs.db
+/pvp

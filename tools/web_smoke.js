@@ -17,7 +17,7 @@ for (const a of rest) {
 const [VW, VH] = opt.size.split('x').map(Number);
 const PORT = 8760 + Math.floor(Math.random() * 400);
 const DBG_PORT = 9360 + Math.floor(Math.random() * 400);
-const BROWSER = [
+const BROWSER = (process.env.BROWSER_PATH && fs.existsSync(process.env.BROWSER_PATH) ? process.env.BROWSER_PATH : null) || [
   'C:/Program Files (x86)/Microsoft/Edge/Application/msedge.exe',
   'C:/Program Files/Google/Chrome/Application/chrome.exe',
 ].find(p => fs.existsSync(p));
