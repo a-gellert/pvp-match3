@@ -26,11 +26,11 @@ local function default_data()
 		diamonds = 30,
 		prestige = 0,
 		max_prestige = 0,
-		max_moves = 1,
+		max_moves = config.START_MOVES,
 		commander_lvl = 1,
 		max_stage_unlocked = 1,
 		onboarding_done = false,
-		onboarding_step = 0, -- 0: battle 1, 1: upgrade a card in the hub, 2: done
+		onboarding_step = 0, -- 0: first 3 battles, 1: upgrade a card in the hub, 2: done
 		lang = "",
 		sound = true,
 		music = true,
@@ -48,7 +48,7 @@ local function default_data()
 		free_chest_at = 0,   -- os.time when the free chest is ready
 		streak = 0,          -- current PvP win streak
 		best_streak = 0,
-		stats = { battles = 0, wins = 0, pvp_wins = 0, chests = 0, upgrades = 0 },
+		stats = { battles = 0, wins = 0, pvp_wins = 0, chests = 0, chests_earned = 0, upgrades = 0 },
 		login = { last_day = 0, count = 0 },
 		daily = nil,
 	}
@@ -79,8 +79,12 @@ function M.load(fresh)
 		local loaded = sys.load(path)
 		if loaded and loaded.cards and loaded.slots then
 			merge_defaults(loaded, default_data())
+			loaded.max_moves = math.max(config.START_MOVES, loaded.max_moves or config.START_MOVES)
 			loaded.max_prestige = math.max(loaded.max_prestige or 0, loaded.prestige or 0)
 			loaded.max_stage_unlocked = math.min(campaign.COUNT, loaded.max_stage_unlocked or 1)
+			if loaded.onboarding_done and (loaded.stats.chests_earned or 0) < #config.EARLY_CHEST_DURATIONS then
+				loaded.stats.chests_earned = #config.EARLY_CHEST_DURATIONS
+			end
 			loaded.version = M.VERSION
 			M.data = loaded
 		else
@@ -129,7 +133,7 @@ function M.player_power()
 		local c = M.data.cards[M.data.slots[col]]
 		sum = sum + (c and c.level or 1)
 	end
-	return { hp = M.hero_hp(), moves = M.data.max_moves or 1, avg_lvl = math.floor(sum / 3 + 0.5) }
+	return { hp = M.hero_hp(), moves = M.data.max_moves or config.START_MOVES, avg_lvl = math.floor(sum / 3 + 0.5) }
 end
 
 -- ---------------------------------------------------------------- cards
@@ -207,7 +211,7 @@ local function add_cards(id, cnt)
 end
 
 function M.move_upgrade_cost()
-	local cur = M.data.max_moves or 1
+	local cur = M.data.max_moves or config.START_MOVES
 	if cur >= config.MAX_MOVES then return nil end
 	return config.MOVE_COSTS[cur + 1]
 end
@@ -231,10 +235,27 @@ function M.buy_booster(kind)
 end
 
 -- ---------------------------------------------------------------- chests
+function M.chest_duration(slot)
+	local ch = M.data.chests[slot]
+	if not ch then return 0 end
+	return ch.duration or config.CHESTS[ch.rarity].duration
+end
+
 function M.add_chest(rarity)
 	for i = 1, config.MAX_CHEST_SLOTS do
 		if not M.data.chests[i] then
-			M.data.chests[i] = { rarity = rarity or "wood", unlocking = false, end_time = 0 }
+			local r = rarity or "wood"
+			local base_dur = config.CHESTS[r].duration
+			local n = math.max(M.data.stats.chests_earned or 0, M.data.onboarding_done and #config.EARLY_CHEST_DURATIONS or 0) + 1
+			M.data.stats.chests_earned = n
+			local cap = config.EARLY_CHEST_DURATIONS[n]
+			local dur = cap ~= nil and math.min(base_dur, cap) or base_dur
+			M.data.chests[i] = {
+				rarity = r,
+				duration = dur,
+				unlocking = dur <= 0,
+				end_time = dur <= 0 and quests.now() or 0,
+			}
 			M.save()
 			return i
 		end
@@ -245,7 +266,7 @@ end
 function M.any_chest_unlocking()
 	for i = 1, config.MAX_CHEST_SLOTS do
 		local ch = M.data.chests[i]
-		if ch and ch.unlocking then return i end
+		if ch and ch.unlocking and M.chest_remaining(i) > 0 then return i end
 	end
 	return nil
 end
@@ -253,7 +274,7 @@ end
 function M.chest_remaining(slot)
 	local ch = M.data.chests[slot]
 	if not ch then return 0 end
-	if not ch.unlocking then return config.CHESTS[ch.rarity].duration end
+	if not ch.unlocking then return M.chest_duration(slot) end
 	return math.max(0, (ch.end_time or 0) - quests.now())
 end
 
@@ -268,7 +289,7 @@ function M.start_chest(slot)
 	if not ch or ch.unlocking then return false end
 	if M.any_chest_unlocking() then return false end
 	ch.unlocking = true
-	ch.end_time = quests.now() + config.CHESTS[ch.rarity].duration
+	ch.end_time = quests.now() + M.chest_duration(slot)
 	M.save()
 	return true
 end
@@ -519,20 +540,22 @@ function M.apply_battle_result(opts)
 			d.stats.pvp_wins = (d.stats.pvp_wins or 0) + 1
 			quests.on_event(d, "pvp_wins", 1)
 		end
-		if opts.tutorial then
-			-- Onboarding: instant militia cards so the player sees the upgrade loop right away.
-			d.cards.red_militia.count = d.cards.red_militia.count + 2
-			bonus_cards = { { id = "red_militia", count = 2 } }
-			if d.onboarding_step == 0 then d.onboarding_step = 1 end
-		end
-		chest_rarity = opts.chest or "wood"
-		chest_slot = M.add_chest(chest_rarity)
 		if not is_pvp and opts.stage_id then
 			first_clear = opts.stage_id >= (d.max_stage_unlocked or 1)
 			if first_clear then
 				d.max_stage_unlocked = math.min(campaign.COUNT, opts.stage_id + 1)
 				local st = campaign.get_stage(opts.stage_id)
 				if st.boss then d.diamonds = d.diamonds + 10 end
+			end
+			if not d.onboarding_done then
+				if opts.stage_id == 1 and first_clear then
+					-- Onboarding: instant militia cards so an upgrade awaits once the Hub opens after Battle 3.
+					d.cards.red_militia.count = d.cards.red_militia.count + 2
+					bonus_cards = { { id = "red_militia", count = 2 } }
+				end
+				if opts.stage_id >= config.ONBOARDING_BATTLES and d.onboarding_step == 0 then
+					d.onboarding_step = 1
+				end
 			end
 			stars = campaign.stars_for(opts.hp_ratio or 0, 1)
 			local old = M.stage_stars(opts.stage_id)
@@ -542,6 +565,8 @@ function M.apply_battle_result(opts)
 				quests.on_event(d, "stars", new_stars)
 			end
 		end
+		chest_rarity = opts.chest or "wood"
+		chest_slot = M.add_chest(chest_rarity)
 	end
 	M.save()
 	return {

@@ -32,11 +32,11 @@ local BIOME_FACES = {
 -- Hand-made onboarding stages (biome 1). HP / moves / levels come from the scaling model below
 -- unless set explicitly.
 local HAND = {
-	{ name_key = "ENEMY_SCOUT", face = "face_goblin", hp = 95, moves = 1, tutorial = true,
+	{ name_key = "ENEMY_SCOUT", face = "face_goblin", hp = 135, moves = 1, tutorial = true,
 	  squads = { red = "red_militia", yellow = "yellow_archers", purple = "purple_cultists" } },
-	{ name_key = "ENEMY_RAIDER", face = "face_goblin",
+	{ name_key = "ENEMY_RAIDER", face = "face_goblin", moves = 1,
 	  squads = { red = "red_spearmen", yellow = "yellow_falconer", purple = "purple_imps" } },
-	{ name_key = "ENEMY_SHAMAN", face = "face_goblin",
+	{ name_key = "ENEMY_SHAMAN", face = "face_goblin", moves = 2,
 	  squads = { red = "red_pyromancer", yellow = "yellow_archers", purple = "purple_cultists" } },
 	{ name_key = "ENEMY_WARCHIEF", face = "face_orc",
 	  squads = { red = "red_berserk", yellow = "yellow_assassins", purple = "purple_imps" } },
@@ -53,16 +53,16 @@ local ENEMY_KEYS = {
 local BOSS_KEYS = { "ENEMY_HUNTER", "ENEMY_LICH", "ENEMY_DRAKE", "ENEMY_DARK", "ENEMY_OVERLORD" }
 
 -- Expected player build when first reaching stage n (avg card level, moves, commander HP).
--- Enemies are scaled against it; the simulation in tools/ calibrates HP_K / BOSS_K.
+-- Enemies are scaled against it; the simulation calibrates HP_K / BOSS_K.
 function M.expected_build(n)
 	local lvl = 1 + math.floor((n - 1) / 4)
-	local moves = math.min(config.MAX_MOVES, 1 + math.floor((n - 1) / 5))
+	local moves = math.min(config.MAX_MOVES, config.START_MOVES + math.floor((n - 1) / 5))
 	local cmd = 1 + 3 * (lvl - 1) + math.floor(n / 2)
 	return lvl, moves, config.commander_hp(cmd, moves, 0)
 end
 
-M.HP_K = 0.8
-M.BOSS_K = 1.15
+M.HP_K = 0.66
+M.BOSS_K = 1.12
 -- Gentle onboarding ramp: early enemies get less HP
 local function hp_ramp(n)
 	if n <= 6 then return 0.62 + n * 0.02 end

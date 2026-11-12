@@ -141,7 +141,7 @@ function M.chest_slot(parent, app, i, x, y, w, h)
 	else
 		ui.label(box, i18n.t("CHEST_" .. slot.rarity), 0, -h / 2 + 46, 14, ui.BONE, w - 14)
 		local b = ui.slice(box, progress.any_chest_unlocking() and "btn_dark" or "btn_gold", 0, -h / 2 + 20, w - 16, 32, ui.WHITE, 12)
-		ui.label(b, i18n.fmt_time(def.duration), 0, 2, 15, ui.WHITE, w - 30)
+		ui.label(b, i18n.fmt_time(progress.chest_duration(i)), 0, 2, 15, ui.WHITE, w - 30)
 	end
 	return timer_node
 end

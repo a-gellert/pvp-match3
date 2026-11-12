@@ -182,7 +182,7 @@ function app.start_campaign(stage_id, skip_break)
 		app.rebuild(true)
 		poki.measure("battle", "campaign_" .. stg.id, "start")
 	end
-	if skip_break then go() else poki.commercial_break((progress.data.stats.battles or 0) + 1, go) end
+	if skip_break or not progress.data.onboarding_done then go() else poki.commercial_break((progress.data.stats.battles or 0) + 1, go) end
 end
 
 function app.start_pvp_search()
@@ -288,7 +288,7 @@ end
 function app.next_stage()
 	local nxt = math.min(campaign.COUNT, (progress.data.max_stage_unlocked or 1))
 	app.close_popup(true)
-	app.start_campaign(nxt)
+	app.start_campaign(nxt, not progress.data.onboarding_done)
 end
 
 -- ---------------------------------------------------------------- rewarded ads
@@ -367,6 +367,46 @@ local function debug_setup(ds)
 	elseif ds == "daily" then app.show_hub("home")
 	elseif ds == "road" then app.show_hub("home"); app.open_popup("road")
 	elseif ds == "stage" then app.show_hub("map"); app.open_popup("stage", { id = 9 })
+	elseif ds == "sim" then
+		local rng = require "main.modules.rng"
+		local ai = require "main.modules.ai"
+		local tot_w, tot_n = 0, 0
+		for n = 1, campaign.COUNT do
+			local stg = campaign.get_stage(n)
+			local lvl, moves, hp = campaign.expected_build(n)
+			local wins, turns, N = 0, 0, 40
+			for s_i = 1, N do
+				local s = battle.new({
+					mode = "campaign", stage_id = n, seed = n * 1009 + s_i * 37,
+					player_hp = hp, player_moves = moves,
+					heal_power = math.floor(hp * config.HEAL_RATIO + 0.5),
+					shield_power = math.floor(hp * config.SHIELD_RATIO + 0.5),
+					player_squads = {
+						red = { id = "red_militia", level = lvl },
+						yellow = { id = "yellow_archers", level = lvl },
+						purple = { id = "purple_cultists", level = lvl },
+					},
+					enemy_hp = stg.hp, enemy_moves = stg.moves, enemy_diff = stg.diff, enemy_squads = stg.squads,
+				})
+				while s.status == "play" and s.turn_num <= 25 do
+					if s.turn == "player" then
+						local m = ai.pick_move(s.board, s.player, 2, s.rng)
+						if m then battle.player_swap(s, m.r1, m.c1, m.r2, m.c2) else s.turn = "enemy" end
+						s.events = {}
+					else
+						battle.step_enemy(s)
+						s.events = {}
+					end
+				end
+				if s.status == "win" then wins = wins + 1 end
+				turns = turns + s.turn_num
+			end
+			tot_w, tot_n = tot_w + wins, tot_n + N
+			print(string.format("[SIM] stage=%d%s win=%d%% turns=%.1f php=%d pmv=%d ehp=%d emv=%d",
+				n, stg.boss and "(B)" or "", math.floor(wins * 100 / N), turns / N, hp, moves, stg.hp, stg.moves))
+		end
+		print(string.format("[SIM] TOTAL win=%d%%", math.floor(tot_w * 100 / tot_n)))
+		app.show_hub("home")
 	else return false end
 	return true
 end
@@ -389,9 +429,9 @@ function init(self)
 	local ds = sys.get_config_string("pvp.debug_screen", "")
 	if debug_setup(ds) then return end
 	if not progress.data.onboarding_done and progress.data.onboarding_step == 0 then
-		app.start_campaign(1, true)
+		app.start_campaign(math.min(config.ONBOARDING_BATTLES, progress.data.max_stage_unlocked or 1), true)
 	else
-		app.show_hub(progress.data.onboarding_step == 1 and "cards" or "home")
+		app.show_hub("home")
 	end
 end
 

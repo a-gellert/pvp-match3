@@ -101,6 +101,10 @@ local function nav_bar(app, cx0, cx1, h)
 			local bd = ui.badge(hit, isz / 2 + 4, isz / 2, cnt, 30)
 			gui.set_inherit_alpha(bd, false)
 		end
+		if tab.id == "cards" and not active and progress.data.onboarding_step == 1 then
+			local hand = ui.box(holder, "icon_hand", 24, 34, 52, 52)
+			ui.pulse(hand, 1.18, 0.45)
+		end
 	end
 end
 
@@ -250,13 +254,6 @@ local function build_home(app, parent, R)
 			local tn = widgets.chest_slot(parent, app, i, cx - w / 2 + cw / 2 + 6 + (i - 1) * (cw + 6), chest_y, cw, chest_h)
 			if tn then st.timers[#st.timers + 1] = { node = tn, fn = function() return i18n.fmt_time(progress.chest_remaining(i)) end } end
 		end
-	end
-
-	-- Onboarding hint: go upgrade a card
-	if d.onboarding_step == 1 then
-		local hint = ui.slice(parent, "btn_gold", R.cx, R.y0 + 30, math.min(R.w - 40, 520), 50, ui.WHITE, 16)
-		ui.label(hint, i18n.t("TUT_GO_CARDS"), 0, 2, 21, ui.INK, math.min(R.w - 40, 520) - 30)
-		ui.pulse(hint, 1.04, 0.5)
 	end
 end
 

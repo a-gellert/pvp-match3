@@ -69,8 +69,8 @@ function M.new(opts)
 			max_hp = p_hp,
 			shield = 0,
 			max_shield = math.floor(p_hp * config.SHIELD_CAP_RATIO),
-			moves_left = opts.player_moves or 1,
-			max_moves = opts.player_moves or 1,
+			moves_left = opts.player_moves or config.START_MOVES,
+			max_moves = opts.player_moves or config.START_MOVES,
 			heal_power = opts.heal_power or math.floor(p_hp * config.HEAL_RATIO + 0.5),
 			shield_power = opts.shield_power or math.floor(p_hp * config.SHIELD_RATIO + 0.5),
 			squads = build_fighter_squads(opts.player_squads),
@@ -449,7 +449,8 @@ function M.revive_player(s)
 	return true
 end
 
--- Hint: the swap that clears the most gems (ties -> first found).
+-- Hint: the swap that clears the most gems (prefers 4+/specials, breaks ties toward attack gems).
+local ATK_HINT = { red = true, yellow = true, purple = true }
 function M.suggest_move(s)
 	local moves = board.valid_moves(s.board.grid)
 	local best, best_n = moves[1], -1
@@ -461,7 +462,9 @@ function M.suggest_move(s)
 			n = 12
 		else
 			g[m.r1][m.c1], g[m.r2][m.c2] = b, a
-			for _, grp in ipairs(board.find_matches(g)) do n = n + #grp.cells + (grp.spawn and 3 or 0) end
+			for _, grp in ipairs(board.find_matches(g)) do
+				n = n + #grp.cells + (grp.spawn and 3 or 0) + (ATK_HINT[grp.color] and 0.1 or 0)
+			end
 			g[m.r1][m.c1], g[m.r2][m.c2] = a, b
 		end
 		if n > best_n then best, best_n = m, n end

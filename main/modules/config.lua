@@ -22,10 +22,12 @@ function M.commander_hp(cmd_lvl, moves, prestige)
 	return math.floor(base * M.HP_SCALE * (1 + M.MOVE_HP_BONUS * ((moves or 1) - 1)) + 0.5)
 end
 
-M.MIN_MOVES = 1
+M.MIN_MOVES = 2
+M.START_MOVES = 2
 M.MAX_MOVES = 7
+M.ONBOARDING_BATTLES = 3
 -- Gold cost to upgrade max_moves from (n-1) to n
-M.MOVE_COSTS = { 0, 80, 200, 450, 900, 1800, 3500 }
+M.MOVE_COSTS = { 0, 0, 180, 420, 900, 1800, 3500 }
 
 M.PRESTIGE_WIN = 25
 M.PRESTIGE_LOSE = 12
@@ -34,12 +36,15 @@ M.PVP_PRESTIGE_LOSE = 18
 M.STREAK_GOLD_BONUS = 0.15 -- +15% gold per PvP win in a row
 M.STREAK_MAX = 5
 
+-- First 4 earned chests open immediately or in seconds during the first Poki session.
+M.EARLY_CHEST_DURATIONS = { 0, 0, 0, 20 }
+
 M.MAX_CHEST_SLOTS = 4
 M.CHEST_ORDER = { "wood", "silver", "royal" }
 M.CHESTS = {
 	wood = {
 		id = "wood",
-		duration = 60,        -- 1 minute
+		duration = 30,        -- 30 seconds
 		gold_min = 35,
 		gold_max = 55,
 		cards_min = 2,
@@ -52,7 +57,7 @@ M.CHESTS = {
 	},
 	silver = {
 		id = "silver",
-		duration = 3600,      -- 1 hour
+		duration = 1800,      -- 30 minutes
 		gold_min = 95,
 		gold_max = 145,
 		cards_min = 6,
@@ -65,7 +70,7 @@ M.CHESTS = {
 	},
 	royal = {
 		id = "royal",
-		duration = 86400,     -- 24 hours
+		duration = 21600,     -- 6 hours
 		gold_min = 280,
 		gold_max = 420,
 		cards_min = 14,
