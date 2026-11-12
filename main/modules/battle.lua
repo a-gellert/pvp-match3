@@ -33,12 +33,14 @@ end
 
 function M.new(opts)
 	local r = rng.new(opts.seed or 42)
-	local b = board.new(r)
+	local b = board.new(r, opts.board_cfg)
 	local p_hp = opts.player_hp or config.BASE_HP
 	local e_hp = opts.enemy_hp or 60
 	return {
 		rng = r,
 		board = b,
+		board_cfg = opts.board_cfg,
+		arena = opts.arena or "arena_bg",
 		mode = opts.mode or "campaign",
 		stage_id = opts.stage_id or 1,
 		tutorial = opts.tutorial or false,
@@ -69,8 +71,8 @@ function M.new(opts)
 			max_hp = p_hp,
 			shield = 0,
 			max_shield = math.floor(p_hp * config.SHIELD_CAP_RATIO),
-			moves_left = opts.player_moves or 1,
-			max_moves = opts.player_moves or 1,
+			moves_left = opts.player_moves or config.START_MOVES,
+			max_moves = opts.player_moves or config.START_MOVES,
 			heal_power = opts.heal_power or math.floor(p_hp * config.HEAL_RATIO + 0.5),
 			shield_power = opts.shield_power or math.floor(p_hp * config.SHIELD_RATIO + 0.5),
 			squads = build_fighter_squads(opts.player_squads),
@@ -155,6 +157,9 @@ local function trigger_skill(s, actor, target, who, col, sq)
 	if not sk then return end
 	local fm = fury_mult(s)
 	local dmg = math.max(1, math.floor(sq.skill_power * fm + 0.5))
+	if actor.statuses.weak and actor.statuses.weak.turns > 0 then
+		dmg = math.max(1, math.floor(dmg * (actor.statuses.weak.ratio or 0.75) + 0.5))
+	end
 	local pierce = sk.pierce or 0
 	local eff = sk.effect
 
@@ -217,9 +222,50 @@ local function trigger_skill(s, actor, target, who, col, sq)
 	elseif eff == "poison" then
 		target.statuses.poison = { dmg = sk.val or 7, turns = sk.dur or 3 }
 		push(s, { kind = "status", who = who == "player" and "enemy" or "player", stype = "poison", val = target.statuses.poison.dmg })
+	elseif eff == "cleanse_burn" then
+		local cleared = actor.statuses.burn ~= nil or actor.statuses.poison ~= nil or actor.statuses.weak ~= nil or (actor.statuses.freeze or 0) > 0
+		actor.statuses.burn = nil
+		actor.statuses.poison = nil
+		actor.statuses.weak = nil
+		actor.statuses.freeze = 0
+		if cleared then
+			push(s, { kind = "status", who = who, stype = "cleanse", val = 1 })
+		end
+		target.statuses.burn = { dmg = sk.val or 7, turns = sk.dur or 2 }
+		push(s, { kind = "status", who = who == "player" and "enemy" or "player", stype = "burn", val = target.statuses.burn.dmg })
+	elseif eff == "rally_charge" then
+		local g = math.min(actor.max_hp - actor.hp, sk.val or 9)
+		if g > 0 then
+			actor.hp = actor.hp + g
+			push(s, { kind = "heal", who = who, amount = g, gained = g })
+		end
+		for _, oc in ipairs(config.ATTACK_COLORS) do
+			if oc ~= col then
+				local osq = actor.squads[oc]
+				if osq and osq.rune_filled then
+					for slot = 1, 2 do
+						if not osq.rune_filled[slot] then
+							osq.rune_filled[slot] = true
+							push(s, { kind = "rune", who = who, color = oc, slot = slot, rune_color = osq.runes and osq.runes[slot] or oc })
+							break
+						end
+					end
+				end
+			end
+		end
+	elseif eff == "hex" then
+		target.statuses.poison = { dmg = sk.val or 6, turns = sk.dur or 3 }
+		target.statuses.weak = { ratio = 0.75, turns = 2 }
+		local tw = who == "player" and "enemy" or "player"
+		push(s, { kind = "status", who = tw, stype = "poison", val = target.statuses.poison.dmg })
+		push(s, { kind = "status", who = tw, stype = "weak", val = 25 })
 	elseif eff == "freeze" then
 		target.statuses.freeze = math.min(1, (target.statuses.freeze or 0) + (sk.val or 1))
 		push(s, { kind = "status", who = who == "player" and "enemy" or "player", stype = "freeze", val = target.statuses.freeze })
+		local frozen = board.freeze_random(s.board, s.rng, 1)
+		if #frozen > 0 then
+			push(s, { kind = "board_freeze", cells = frozen })
+		end
 	end
 end
 
@@ -263,6 +309,9 @@ local function apply_cascade_effects(s, actor, target, who, steps)
 				local sq = actor.squads[col]
 				local gem_scale = cnt / 3
 				local dmg = math.max(1, math.floor(sq.power * gem_scale * c_mult + 0.5))
+				if actor.statuses.weak and actor.statuses.weak.turns > 0 then
+					dmg = math.max(1, math.floor(dmg * (actor.statuses.weak.ratio or 0.75) + 0.5))
+				end
 				local pierce = 0
 				local crit = false
 				if sq.trait == "crit" and s.rng:float() < 0.25 then
@@ -325,6 +374,18 @@ local function apply_cascade_effects(s, actor, target, who, steps)
 
 		-- Feed crystal runes across all 3 squads & trigger Special Skills when 2/2 ready
 		charge_runes(s, actor, target, who, step.counts)
+		if step.stones_broken and #step.stones_broken > 0 then
+			local g = math.min(actor.max_shield - actor.shield, 4 * #step.stones_broken)
+			if g > 0 then
+				actor.shield = actor.shield + g
+				push(s, { kind = "shield", who = who, amount = g, gained = g })
+			end
+		end
+		if (step.curses_cleared or 0) > 0 and target.hp > 0 then
+			local cdmg = math.max(6, math.floor(target.max_hp * 0.06 + 0.5)) * step.curses_cleared
+			local dealt, blocked = apply_damage(target, cdmg, 0.5)
+			push(s, { kind = "curse_clear", who = who, count = step.curses_cleared, dmg = cdmg, dealt = dealt, blocked = blocked, cells = step.curse_cells })
+		end
 		if target.hp <= 0 then return end
 	end
 end
@@ -378,6 +439,20 @@ function M.player_swap(s, r1, c1, r2, c2)
 	if check_end(s) then return true end
 
 	if s.player.moves_left == 0 then
+		if s.player.statuses.weak then
+			s.player.statuses.weak.turns = s.player.statuses.weak.turns - 1
+			if s.player.statuses.weak.turns <= 0 then s.player.statuses.weak = nil end
+		end
+		local ct = board.tick_curses(s.board)
+		if #ct.exploded > 0 then
+			local bdmg = math.max(5, math.floor(s.player.max_hp * 0.07 + 0.5)) * #ct.exploded
+			local dealt, blocked = apply_damage(s.player, bdmg, 0)
+			push(s, { kind = "curse_blast", cells = ct.exploded, dmg = bdmg, dealt = dealt, blocked = blocked })
+			if check_end(s) then return true end
+		end
+		if #ct.remaining > 0 then
+			push(s, { kind = "curse_tick", cells = ct.remaining })
+		end
 		begin_turn(s, "enemy")
 	end
 	return true
@@ -402,7 +477,21 @@ function M.step_enemy(s)
 	if check_end(s) then return true end
 
 	if s.enemy.moves_left == 0 then
+		if s.enemy.statuses.weak then
+			s.enemy.statuses.weak.turns = s.enemy.statuses.weak.turns - 1
+			if s.enemy.statuses.weak.turns <= 0 then s.enemy.statuses.weak = nil end
+		end
 		begin_turn(s, "player")
+		if s.status == "play" and s.board_cfg then
+			if s.board_cfg.freeze_chance and s.rng:float() < s.board_cfg.freeze_chance then
+				local fr = board.freeze_random(s.board, s.rng, 1)
+				if #fr > 0 then push(s, { kind = "board_freeze", cells = fr }) end
+			end
+			if s.board_cfg.curse_chance and s.rng:float() < s.board_cfg.curse_chance then
+				local cu = board.spawn_curse(s.board, s.rng)
+				if cu then push(s, { kind = "board_curse", cells = { cu } }) end
+			end
+		end
 	end
 	return true
 end
@@ -449,7 +538,8 @@ function M.revive_player(s)
 	return true
 end
 
--- Hint: the swap that clears the most gems (ties -> first found).
+-- Hint: the swap that clears the most gems (prefers 4+/specials, breaks ties toward attack gems).
+local ATK_HINT = { red = true, yellow = true, purple = true }
 function M.suggest_move(s)
 	local moves = board.valid_moves(s.board.grid)
 	local best, best_n = moves[1], -1
@@ -461,7 +551,9 @@ function M.suggest_move(s)
 			n = 12
 		else
 			g[m.r1][m.c1], g[m.r2][m.c2] = b, a
-			for _, grp in ipairs(board.find_matches(g)) do n = n + #grp.cells + (grp.spawn and 3 or 0) end
+			for _, grp in ipairs(board.find_matches(g)) do
+				n = n + #grp.cells + (grp.spawn and 3 or 0) + (ATK_HINT[grp.color] and 0.1 or 0)
+			end
 			g[m.r1][m.c1], g[m.r2][m.c2] = a, b
 		end
 		if n > best_n then best, best_n = m, n end

@@ -7,8 +7,8 @@ local M = {}
 local gameplay = false
 local ad_active = false
 
--- Commercial breaks start after the onboarding battles (Poki rate-limits them on its side too).
-M.FIRST_BREAK_LEVEL = 3
+-- Commercial breaks start after the 3 onboarding battles (Poki rate-limits them on its side too).
+M.FIRST_BREAK_LEVEL = 4
 
 local function set_ad(active)
 	ad_active = active

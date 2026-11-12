@@ -20,8 +20,8 @@ local LANE_OF = { red = true, yellow = true, purple = true }
 local SIDES = { "player", "enemy" }
 
 local SPEC_SPRITE = { line_h = "spec_line_h", line_v = "spec_line_v", bomb = "spec_bomb" }
-local STEP_DUR = 0.36
-local HINT_DELAY = 5.5
+local STEP_DUR = 0.34
+local HINT_DELAY = 2.5
 local DMG_COLOR = V4(1, 0.93, 0.86, 1)
 local DEAD_COLOR = V4(0.36, 0.38, 0.46, 0.6)
 
@@ -49,19 +49,42 @@ local function tint(c, a) return V4(c.x, c.y, c.z, a) end
 
 -- ---------------------------------------------------------------- gems
 local function make_gem(r, c, gem, start_y)
-	if not gem then return nil end
+	if not gem or gem.hole then return nil end
 	local x, y = cell_pos(r, c)
 	local gs = st.cell * 0.88
+	if gem.stone then
+		local tint_col = (gem.hp or 1) >= 2 and V4(0.85, 0.88, 0.96, 1) or V4(1, 0.78, 0.65, 1)
+		local n = ui.box(st.gem_layer, "obs_stone", x, start_y or y, st.cell * 0.94, st.cell * 0.94, tint_col)
+		if (gem.hp or 1) >= 2 then
+			ui.text(n, tostring(gem.hp), gs * 0.28, -gs * 0.26, 18, ui.GOLD)
+		end
+		return { node = n, stone = true, hp = gem.hp }
+	end
 	local n = ui.box(st.gem_layer, ui.GEM_SPRITE[gem.color] or "gem_red", x, start_y or y, gs, gs)
+	if gem.empowered then
+		local em = ui.glow(ui.box(n, "obs_empowered", 0, 0, gs * 1.18, gs * 1.18, V4(1, 0.92, 0.45, 0.92)))
+		ui.pulse(em, 1.09, 0.55)
+	end
 	if gem.special and SPEC_SPRITE[gem.special] then
-		local sp = ui.glow(ui.box(n, SPEC_SPRITE[gem.special], 0, 0, gs * 0.9, gs * 0.9, V4(1, 1, 1, 0.95)))
+		local sp = ui.glow(ui.box(n, SPEC_SPRITE[gem.special], 0, 0, gs * 0.95, gs * 0.95, V4(1, 1, 1, 0.95)))
 		ui.pulse(sp, 1.12, 0.55)
 	elseif gem.special == "prism" then
 		ui.spin(n, 6)
 		local gl = ui.glow(ui.box(n, "glow", 0, 0, gs * 1.4, gs * 1.4, V4(1, 1, 1, 0.35)))
 		ui.pulse(gl, 1.15, 0.6)
 	end
-	return { node = n, color = gem.color, special = gem.special }
+	if gem.curse then
+		local cu = ui.box(n, "obs_curse", 0, 0, gs * 1.08, gs * 1.08, V4(1, 1, 1, 0.95))
+		ui.pulse(cu, 1.06, 0.65)
+		ui.text(n, tostring(gem.curse), gs * 0.3, -gs * 0.28, 20, ui.RED)
+	end
+	if gem.ice then
+		ui.box(n, "obs_ice", 0, 0, gs * 1.08, gs * 1.08, V4(0.9, 0.97, 1, 0.96))
+	end
+	return {
+		node = n, color = gem.color, special = gem.special,
+		empowered = gem.empowered, ice = gem.ice, curse = gem.curse,
+	}
 end
 
 local function kill_gem(g, delay)
@@ -93,9 +116,10 @@ local function sync_board()
 			local want = g[r][c]
 			local have = st.gems[r][c]
 			local x, y = cell_pos(r, c)
-			if not want then
+			if not want or want.hole then
 				if have then gui.delete_node(have.node); st.gems[r][c] = nil end
-			elseif not have or have.color ~= want.color or have.special ~= want.special then
+			elseif not have or have.stone ~= want.stone or have.hp ~= want.hp or have.color ~= want.color
+				or have.special ~= want.special or have.ice ~= want.ice or have.curse ~= want.curse or have.empowered ~= want.empowered then
 				if have then gui.delete_node(have.node) end
 				st.gems[r][c] = make_gem(r, c, want)
 			else
@@ -130,6 +154,10 @@ end
 
 local function clear_hint()
 	st.idle = 0
+	if st.hint_fx then
+		for _, n in ipairs(st.hint_fx) do gui.delete_node(n) end
+		st.hint_fx = nil
+	end
 	if st.hint_nodes then
 		for _, g in ipairs(st.hint_nodes) do
 			if g.node then
@@ -149,8 +177,18 @@ local function show_hint()
 	local a, b = st.gems[m.r1][m.c1], st.gems[m.r2][m.c2]
 	if not (a and b) then return end
 	st.hint_nodes = { a, b }
-	for _, g in ipairs(st.hint_nodes) do
-		gui.animate(g.node, "scale", V3(1.16, 1.16, 1), gui.EASING_INOUTSINE, 0.45, 0, nil, gui.PLAYBACK_LOOP_PINGPONG)
+	st.hint_fx = {}
+	for _, p in ipairs({ { m.r1, m.c1, a }, { m.r2, m.c2, b } }) do
+		local gx, gy = cell_pos(p[1], p[2])
+		local gc = ui.GEM_COLOR[p[3].color] or ui.GOLD
+		local gl = ui.glow(ui.box(st.fx_layer, "glow", gx, gy, st.cell * 1.45, st.cell * 1.45, tint(gc, 0.55)))
+		gui.animate(gl, "scale", V3(1.22, 1.22, 1), gui.EASING_INOUTSINE, 0.42, 0, nil, gui.PLAYBACK_LOOP_PINGPONG)
+		gui.animate(gl, "color.w", 0.22, gui.EASING_INOUTSINE, 0.42, 0, nil, gui.PLAYBACK_LOOP_PINGPONG)
+		local rg = ui.glow(ui.box(st.fx_layer, "ring", gx, gy, st.cell * 1.05, st.cell * 1.05, ui.GOLD))
+		gui.animate(rg, "scale", V3(1.18, 1.18, 1), gui.EASING_INOUTSINE, 0.42, 0, nil, gui.PLAYBACK_LOOP_PINGPONG)
+		st.hint_fx[#st.hint_fx + 1] = gl
+		st.hint_fx[#st.hint_fx + 1] = rg
+		gui.animate(p[3].node, "scale", V3(1.18, 1.18, 1), gui.EASING_INOUTSINE, 0.42, 0, nil, gui.PLAYBACK_LOOP_PINGPONG)
 	end
 	local x1, y1 = cell_pos(m.r1, m.c1)
 	local x2, y2 = cell_pos(m.r2, m.c2)
@@ -503,7 +541,7 @@ function M.build(app, parent)
 	local inner = ui.pane(st.zoom, -acx, -acy)
 	st.shake = ui.pane(inner, 0, 0)
 	ui.slice(st.shake, "panel_dark", acx, acy, aw, ah, ui.WHITE, 20)
-	ui.box(st.shake, "arena_bg", acx, acy, aw - 14, ah - 14, V4(0.55 + th.x * 0.45, 0.55 + th.y * 0.45, 0.55 + th.z * 0.45, 1))
+	ui.box(st.shake, s.arena or "arena_bg", acx, acy, aw - 14, ah - 14, V4(0.55 + th.x * 0.45, 0.55 + th.y * 0.45, 0.55 + th.z * 0.45, 1))
 	ui.box(st.shake, "vignette", acx, acy, aw - 14, ah - 14, V4(1, 1, 1, 0.75))
 
 	-- Lane row: [squad] -- (gem) -- [squad]; matched gems of a colour make that squad strike across
@@ -563,7 +601,12 @@ function M.build(app, parent)
 	for r = 1, N do
 		for c = 1, N do
 			local x, y = cell_pos(r, c)
-			ui.box(st.root, "cell_bg", x, y, st.cell - 4, st.cell - 4, (r + c) % 2 == 0 and ui.WHITE or V4(0.9, 0.92, 1, 1))
+			local cell = s.board.grid[r][c]
+			if cell and cell.hole then
+				ui.box(st.root, "obs_hole", x, y, st.cell - 2, st.cell - 2)
+			else
+				ui.box(st.root, "cell_bg", x, y, st.cell - 4, st.cell - 4, (r + c) % 2 == 0 and ui.WHITE or V4(0.9, 0.92, 1, 1))
+			end
 		end
 	end
 	st.sel_ring = ui.glow(ui.box(st.root, "ring", 0, 0, st.cell * 1.05, st.cell * 1.05, ui.GOLD))
@@ -726,29 +769,31 @@ end
 local function strike_melee(ev, A, T, foe, big, col)
 	local hx, hy = A.home.x, A.home.y
 	local dir = ev.who == "player" and 1 or -1
-	local tx, ty = T.home.x - dir * st.us * 0.62, T.home.y
+	local tx, ty = T.home.x - dir * st.us * 0.56, T.home.y
 	audio.play("dash")
 	gui.cancel_animations(A.holder, "position")
+	gui.cancel_animations(A.holder, "scale")
 	gui.set_position(A.holder, V3(hx, hy, 0))
-	gui.animate(A.holder, "position", V3(tx, ty, 0), gui.EASING_INCUBIC, 0.16)
-	gui.animate(A.holder, "scale", V3(1.18, 1.18, 1), gui.EASING_OUTQUAD, 0.16)
-	ui.after(0.05, function() ui.puff(st.fx_layer, hx + (tx - hx) * 0.3, hy + (ty - hy) * 0.3, nil, 30) end)
-	ui.after(0.16, function()
+	gui.set_scale(A.holder, V3(1, 1, 1))
+	gui.animate(A.holder, "position", V3(tx, ty, 0), gui.EASING_INCUBIC, 0.11)
+	gui.animate(A.holder, "scale", V3(1.22, 1.22, 1), gui.EASING_OUTQUAD, 0.11)
+	ui.after(0.03, function() ui.puff(st.fx_layer, hx + (tx - hx) * 0.35, hy + (ty - hy) * 0.35, nil, 34) end)
+	ui.after(0.11, function()
 		audio.play("slash", 0.95, ev.crit and 1.15 or 1.0)
 		local sp = ev.fx or "fx_slash"
-		local sz = st.us * 1.25
+		local sz = st.us * 1.3
 		local sl = ui.glow(ui.box(st.fx_layer, sp, T.home.x - dir * 8, T.home.y, sz, sz, sp == "fx_slash" and col or ui.WHITE))
 		gui.set_scale(sl, V3(dir * 0.65, 0.65, 1))
 		gui.set_euler(sl, V3(0, 0, dir * -22))
-		gui.animate(sl, "scale", V3(dir * 1.35, 1.35, 1), gui.EASING_OUTQUAD, 0.18)
-		gui.animate(sl, "euler.z", dir * 32, gui.EASING_OUTQUAD, 0.18)
-		gui.animate(sl, "color.w", 0, gui.EASING_INQUAD, 0.2, 0.04, function() gui.delete_node(sl) end)
+		gui.animate(sl, "scale", V3(dir * 1.4, 1.4, 1), gui.EASING_OUTQUAD, 0.16)
+		gui.animate(sl, "euler.z", dir * 32, gui.EASING_OUTQUAD, 0.16)
+		gui.animate(sl, "color.w", 0, gui.EASING_INQUAD, 0.18, 0.04, function() gui.delete_node(sl) end)
 		hit_squad(foe, ev.color, ev, big, col)
-		ui.shake_xy(st.shake, big and 10 or 6)
+		ui.shake_xy(st.shake, big and 12 or 6)
 	end)
-	ui.after(0.24, function()
-		gui.animate(A.holder, "position", V3(hx, hy, 0), gui.EASING_OUTQUAD, 0.18)
-		gui.animate(A.holder, "scale", V3(1, 1, 1), gui.EASING_OUTQUAD, 0.18)
+	ui.after(0.18, function()
+		gui.animate(A.holder, "position", V3(hx, hy, 0), gui.EASING_OUTQUAD, 0.15)
+		gui.animate(A.holder, "scale", V3(1, 1, 1), gui.EASING_OUTQUAD, 0.15)
 	end)
 end
 
@@ -759,39 +804,48 @@ local function strike_missile(ev, A, T, foe, big, col, magic)
 	local dir = ev.who == "player" and 1 or -1
 	audio.play(magic and "spell" or "arrow")
 	gui.cancel_animations(A.holder, "position")
+	gui.cancel_animations(A.holder, "scale")
 	gui.set_position(A.holder, V3(hx, hy, 0))
+	gui.set_scale(A.holder, V3(1, 1, 1))
+	local lx = hx + dir * (magic and 20 or 26)
+	local ly = hy + (magic and 12 or 4)
+	gui.animate(A.holder, "position", V3(lx, ly, 0), gui.EASING_OUTQUAD, 0.08, 0, function()
+		gui.animate(A.holder, "position", V3(hx, hy, 0), gui.EASING_OUTBACK, 0.15)
+	end)
+	gui.animate(A.holder, "scale", V3(1.12, 1.12, 1), gui.EASING_OUTQUAD, 0.08, 0, function()
+		gui.animate(A.holder, "scale", V3(1, 1, 1), gui.EASING_OUTQUAD, 0.15)
+	end)
 	if magic then
-		gui.animate(A.holder, "position.y", hy + 14, gui.EASING_OUTQUAD, 0.12, 0, function()
-			gui.animate(A.holder, "position.y", hy, gui.EASING_INQUAD, 0.16)
-		end)
-		ui.ring(st.fx_layer, hx, hy + 10, st.us * 1.2, col, 0.28)
+		ui.ring(st.fx_layer, hx, hy + 10, st.us * 1.25, col, 0.26)
 	else
-		gui.animate(A.holder, "position.x", hx - dir * 12, gui.EASING_OUTQUAD, 0.06, 0, function()
-			gui.animate(A.holder, "position.x", hx, gui.EASING_OUTBACK, 0.16)
-		end)
+		ui.puff(st.fx_layer, hx - dir * 10, hy - 8, nil, 24)
 	end
 	local per = magic and math.max(1, math.min(3, ev.units or 2)) or math.max(2, math.min(4, ev.units or 3))
-	local fly = magic and 0.23 or 0.19
+	local fly = magic and 0.20 or 0.16
 	for k = 1, per do
-		ui.after((k - 1) * (magic and 0.065 or 0.045), function()
-			local sy = hy + (k - (per + 1) / 2) * 14
-			local sx = hx + dir * st.us * 0.3
+		ui.after((k - 1) * (magic and 0.055 or 0.035), function()
+			local sy = ly + (k - (per + 1) / 2) * 14
+			local sx = lx + dir * st.us * 0.28
 			local ey = ty + (k - (per + 1) / 2) * 10
 			local ang = math.deg(math.atan2(ey - sy, tx - sx))
-			local w, h = magic and 66 or 64, magic and 48 or 32
+			local w, h = magic and 68 or 64, magic and 50 or 32
 			local proj = ui.glow(ui.box(st.fx_layer, ev.fx or (magic and "proj_spell" or "proj_arrow"), sx, sy, w, h, ui.WHITE))
 			gui.set_euler(proj, V3(0, 0, ang))
 			gui.animate(proj, "position", V3(tx, ey, 0), magic and gui.EASING_INOUTSINE or gui.EASING_LINEAR, fly)
-			ui.after(fly * 0.45, function() ui.spark_dot(st.fx_layer, sx + (tx - sx) * 0.45, sy + (ey - sy) * 0.45, col, magic and 22 or 14, 0.2) end)
+			ui.after(fly * 0.45, function() ui.spark_dot(st.fx_layer, sx + (tx - sx) * 0.45, sy + (ey - sy) * 0.45, col, magic and 24 or 16, 0.2) end)
 			ui.after(fly, function()
 				gui.delete_node(proj)
-				if k == 1 then hit_squad(foe, ev.color, ev, big, col)
-				elseif magic then ui.ring(st.fx_layer, tx, ey, st.us * 1.1, col, 0.25)
-				else ui.burst(st.fx_layer, tx + math.random(-14, 14), ey + math.random(-14, 14), 3, col, 36, 16) end
+				if k == 1 then
+					hit_squad(foe, ev.color, ev, big, col)
+					ui.shake_xy(st.shake, big and 11 or 5)
+				elseif magic then
+					ui.ring(st.fx_layer, tx, ey, st.us * 1.1, col, 0.25)
+				else
+					ui.burst(st.fx_layer, tx + math.random(-14, 14), ey + math.random(-14, 14), 3, col, 36, 16)
+				end
 			end)
 		end)
 	end
-	if big then ui.after(fly, function() ui.shake_xy(st.shake, 8) end) end
 end
 
 local function strike(ev)
@@ -845,7 +899,7 @@ local function schedule_effect(ev, t)
 	local k = ev.kind
 	if k == "attack" then
 		at(t, function() strike(ev) end)
-		return t + 0.42
+		return t + 0.36
 	elseif k == "skill" then
 		at(t, function()
 			local c = ui.GEM_COLOR[ev.color] or ui.GOLD
@@ -889,10 +943,13 @@ local function schedule_effect(ev, t)
 	elseif k == "status" then
 		at(t, function()
 			local side = side_of(ev.who)
-			local key = ev.stype == "burn" and "BURN_TAG" or (ev.stype == "poison" and "POISON_TAG" or "FREEZE_TAG")
-			local col = ev.stype == "burn" and ui.RED or (ev.stype == "poison" and ui.GREEN or ui.DIAMOND)
+			local KEYS = { burn = "BURN_TAG", poison = "POISON_TAG", freeze = "FREEZE_TAG", weak = "WEAK_TAG", cleanse = "CLEANSE_TAG" }
+			local COLS = { burn = ui.RED, poison = ui.GREEN, freeze = ui.DIAMOND, weak = ui.PURPLE, cleanse = ui.GOLD }
+			local ICONS = { burn = "icon_burn", poison = "icon_poison", freeze = "icon_freeze", weak = "icon_skull", cleanse = "icon_shield" }
+			local key = KEYS[ev.stype] or "FREEZE_TAG"
+			local col = COLS[ev.stype] or ui.DIAMOND
 			local fx = st.faces[side].x
-			local ic = ui.box(st.fx_layer, "icon_" .. ev.stype, fx, st.strip_y, 70, 70)
+			local ic = ui.box(st.fx_layer, ICONS[ev.stype] or "icon_star", fx, st.strip_y, 70, 70)
 			ui.pop(ic, 0.3, 1.2, 0.25)
 			gui.animate(ic, "color.w", 0, gui.EASING_INQUAD, 0.3, 0.4, function() gui.delete_node(ic) end)
 			ui.float_text(st.fx_layer, i18n.t(key), st.bars[side].x, st.strip_y + 40, 22, col, 40)
@@ -902,6 +959,54 @@ local function schedule_effect(ev, t)
 			end
 		end)
 		return t + 0.25
+	elseif k == "curse_clear" then
+		at(t, function()
+			local t_side = side_of(ev.who == "player" and "enemy" or "player")
+			local b = st.bars[t_side]
+			audio.play("hit", 0.85, 1.15)
+			ui.ring(st.fx_layer, b.x, b.y, 120, ui.PURPLE, 0.35)
+			ui.burst(st.fx_layer, b.x, b.y, 8, ui.PURPLE, 60, 20)
+			ui.float_text(st.fx_layer, i18n.t("CURSE_TAG") .. " -" .. (ev.dmg or 0), b.x, b.y + 34, 24, ui.PURPLE, 48)
+			local d = st.disp[t_side]
+			d.hp = d.hp - (ev.dealt or 0)
+			d.shield = d.shield - (ev.blocked or 0)
+			set_bars(false)
+		end)
+		return t + 0.3
+	elseif k == "curse_blast" then
+		at(t, function()
+			local b = st.bars.player
+			audio.play("hit", 0.9, 0.8)
+			ui.shake_xy(st.shake, 9)
+			ui.ring(st.fx_layer, b.x, b.y, 140, ui.RED, 0.4)
+			ui.burst(st.fx_layer, b.x, b.y, 10, ui.RED, 65, 22)
+			ui.float_text(st.fx_layer, i18n.t("CURSE_TAG") .. " -" .. (ev.dmg or 0), b.x, b.y + 34, 24, ui.RED, 48)
+			local d = st.disp.player
+			d.hp = d.hp - (ev.dealt or 0)
+			d.shield = d.shield - (ev.blocked or 0)
+			set_bars(false)
+		end)
+		return t + 0.45
+	elseif k == "board_freeze" then
+		at(t, function()
+			audio.play("shield", 0.7, 1.5)
+			for _, p in ipairs(ev.cells or {}) do
+				local cx, cy = cell_pos(p.r, p.c)
+				ui.ring(st.fx_layer, cx, cy, st.cell * 1.4, ui.DIAMOND, 0.38)
+				ui.burst(st.fx_layer, cx, cy, 5, ui.DIAMOND, st.cell * 0.4, 16)
+			end
+			sync_board()
+		end)
+		return t + 0.25
+	elseif k == "board_curse" or k == "curse_tick" then
+		at(t, function()
+			for _, p in ipairs(ev.cells or {}) do
+				local cx, cy = cell_pos(p.r, p.c)
+				ui.ring(st.fx_layer, cx, cy, st.cell * 1.2, ui.PURPLE, 0.3)
+			end
+			sync_board()
+		end)
+		return t + 0.12
 	elseif k == "dot" then
 		at(t, function()
 			local side = side_of(ev.who)
@@ -1023,15 +1128,16 @@ local function anim_step(ev, step)
 		if cascade >= 3 then audio.play("combo", 0.7, 1 + cascade * 0.05) end
 	end
 	-- Clear
-	local rep = {}
+	local cells_by_col = {}
 	local many = #step.cleared > 14
 	for _, cl in ipairs(step.cleared) do
 		local g = st.gems[cl.r][cl.c]
 		if g then kill_gem(g); st.gems[cl.r][cl.c] = nil end
 		local cx, cy = cell_pos(cl.r, cl.c)
 		local col = ui.GEM_COLOR[cl.color] or ui.WHITE
-		if not rep[cl.color] then rep[cl.color] = { x = cx, y = cy, n = 0 } end
-		rep[cl.color].n = rep[cl.color].n + 1
+		local lst = cells_by_col[cl.color]
+		if not lst then lst = {}; cells_by_col[cl.color] = lst end
+		lst[#lst + 1] = { x = cx, y = cy }
 		ui.ring(st.fx_layer, cx, cy, st.cell * 0.9, col, 0.22)
 		if not many then ui.burst(st.fx_layer, cx, cy, 3, col, st.cell * 0.45, 16) end
 		if cl.special then
@@ -1039,8 +1145,36 @@ local function anim_step(ev, step)
 			ui.shake_xy(st.shake, 6)
 		end
 	end
-	-- Energy orbs fly into the squads that will use them (green / blue: into the team HP bar)
-	for col, pos in pairs(rep) do
+	for _, p in ipairs(step.stones_hit or {}) do
+		local cx, cy = cell_pos(p.r, p.c)
+		local g = st.gems[p.r][p.c]
+		if g then ui.shake(g.node, 10) end
+		ui.burst(st.fx_layer, cx, cy, 4, ui.DIM, st.cell * 0.4, 14)
+	end
+	for _, p in ipairs(step.stones_broken or {}) do
+		local g = st.gems[p.r][p.c]
+		if g then kill_gem(g); st.gems[p.r][p.c] = nil end
+		local cx, cy = cell_pos(p.r, p.c)
+		ui.ring(st.fx_layer, cx, cy, st.cell * 1.4, ui.GOLD, 0.3)
+		ui.burst(st.fx_layer, cx, cy, 7, ui.BONE, st.cell * 0.5, 18)
+		ui.float_text(st.fx_layer, i18n.t("SHATTER_TAG"), cx, cy + 16, 18, ui.GOLD, 32)
+	end
+	for _, p in ipairs(step.melted or {}) do
+		local cx, cy = cell_pos(p.r, p.c)
+		ui.ring(st.fx_layer, cx, cy, st.cell * 1.25, ui.DIAMOND, 0.28)
+		ui.burst(st.fx_layer, cx, cy, 5, ui.DIAMOND, st.cell * 0.4, 15)
+		local g = st.gems[p.r][p.c]
+		if g and g.ice then
+			gui.delete_node(g.node)
+			st.gems[p.r][p.c] = make_gem(p.r, p.c, { color = g.color, special = g.special, empowered = g.empowered, curse = g.curse })
+		end
+	end
+	for _, p in ipairs(step.empowered_cells or {}) do
+		local cx, cy = cell_pos(p.r, p.c)
+		ui.float_text(st.fx_layer, i18n.t("EMPOWER_TAG"), cx, cy + 12, 18, ui.GOLD, 34)
+	end
+	-- Bright energy orbs fly directly from cleared crystals into the matching squad (green/blue -> team bar)
+	for col, pts in pairs(cells_by_col) do
 		local tx, ty
 		local U = LANE_OF[col] and unit(side, col)
 		if U then
@@ -1048,9 +1182,24 @@ local function anim_step(ev, step)
 		else
 			tx, ty = st.bars[side].x, st.bars[side].y
 		end
-		for k = 1, math.min(3, math.ceil(pos.n / 3)) do
-			local orb = ui.glow(ui.box(st.fx_layer, "glow", pos.x, pos.y, 34, 34, ui.GEM_COLOR[col] or ui.WHITE))
-			ui.fly(orb, tx, ty, 0.2 + k * 0.03, (k - 1) * 0.03, function() gui.delete_node(orb) end)
+		local gc = ui.GEM_COLOR[col] or ui.WHITE
+		local count = math.min(#pts, 6)
+		for k = 1, count do
+			local p = pts[k]
+			local delay = (k - 1) * 0.02
+			local dur = 0.16 + math.min(2, k - 1) * 0.015
+			local orb = ui.glow(ui.box(st.fx_layer, "glow", p.x, p.y, 44, 44, gc))
+			ui.glow(ui.box(orb, "glow", 0, 0, 20, 20, ui.WHITE))
+			ui.after(delay + dur * 0.5, function()
+				ui.spark_dot(st.fx_layer, (p.x + tx) * 0.5, (p.y + ty) * 0.5, gc, 22, 0.18)
+			end)
+			ui.fly(orb, tx, ty, dur, delay, function()
+				gui.delete_node(orb)
+				if k == 1 then
+					ui.ring(st.fx_layer, tx, ty, st.us * 1.15, gc, 0.22)
+					ui.burst(st.fx_layer, tx, ty, 4, gc, st.us * 0.45, 18)
+				end
+			end)
 		end
 	end
 	-- Specials are born where the match was made
@@ -1158,7 +1307,7 @@ function M.process()
 			local j = i + 1
 			while j <= #evs and evs[j].step do
 				local e = evs[j]
-				local base = (step_t[e.step] or t0) + 0.2
+				local base = (step_t[e.step] or t0) + 0.16
 				local n = per_step[e.step] or 0
 				if e.kind == "attack" or e.kind == "skill" then per_step[e.step] = n + 1 end
 				fx_end = math.max(fx_end, schedule_effect(e, base + math.min(3, n) * 0.13))
@@ -1274,9 +1423,15 @@ function M.touch_start(x, y)
 		if battle.use_booster(st.session, "hammer", r, c) then M.process() else M.refresh_hud() end
 		return
 	end
+	local logic_g = st.session.board.grid[r][c]
+	local g = st.gems[r][c]
+	if not logic_g or logic_g.hole or logic_g.stone or logic_g.ice then
+		audio.play("blocked")
+		if g then ui.shake(g.node, 7) end
+		return
+	end
 	st.drag = { r = r, c = c, done = false }
 	audio.play("tap")
-	local g = st.gems[r][c]
 	if g then show_target(g.color) end
 	if g and not (st.sel and st.sel.r == r and st.sel.c == c) then
 		gui.animate(g.node, "scale", V3(1.1, 1.1, 1), gui.EASING_OUTQUAD, 0.08)
@@ -1351,7 +1506,7 @@ function M.update(dt)
 			if m then try_swap(m.r1, m.c1, m.r2, m.c2) end
 			return
 		end
-		if st.idle > HINT_DELAY and not st.hint_nodes and not s.tutorial then
+		if st.idle >= HINT_DELAY and not st.hint_nodes then
 			show_hint()
 		end
 	end

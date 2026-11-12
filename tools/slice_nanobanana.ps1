@@ -333,7 +333,7 @@ function Slice-GridWhite($path, $cols, $rows, $names, $maxW, $maxH, $square, $so
     }
 }
 
-function Slice-RowAuto($path, $names, $maxW, $maxH) {
+function Slice-RowAuto($path, $names, $maxW, $maxH, $square = $false, $removePockets = $true) {
     $cuts = [SpriteProcessor]::FindVerticalValleys($path, $names.Count)
     $bmpFull = New-Object System.Drawing.Bitmap($path)
     $w = $bmpFull.Width
@@ -342,14 +342,14 @@ function Slice-RowAuto($path, $names, $maxW, $maxH) {
         $rx0 = $cuts[$i] / [double]$w
         $rx1 = $cuts[$i + 1] / [double]$w
         $bmp = [SpriteProcessor]::LoadCrop($path, $rx0, 0.0, $rx1, 1.0)
-        [SpriteProcessor]::KeyWhite($bmp, $true, $true)
-        [SpriteProcessor]::SaveTight($bmp, "$ArtDir/$($names[$i]).png", $maxW, $maxH, $false)
+        [SpriteProcessor]::KeyWhite($bmp, $true, $removePockets)
+        [SpriteProcessor]::SaveTight($bmp, "$ArtDir/$($names[$i]).png", $maxW, $maxH, $square)
         $bmp.Dispose()
         Write-Host "Saved $($names[$i]).png (cuts $($cuts[$i])..$($cuts[$i+1]))"
     }
 }
 
-function Slice-GridBlack($path, $cols, $rows, $names, $maxW, $maxH) {
+function Slice-GridBlack($path, $cols, $rows, $names, $maxW, $maxH, $square = $false) {
     $idx = 0
     $pad = 0.03
     for ($r = 0; $r -lt $rows; $r++) {
@@ -357,7 +357,7 @@ function Slice-GridBlack($path, $cols, $rows, $names, $maxW, $maxH) {
             $name = $names[$idx++]
             $bmp = [SpriteProcessor]::LoadCrop($path, $c / $cols + $pad, $r / $rows + $pad, ($c + 1) / $cols - $pad, ($r + 1) / $rows - $pad)
             [SpriteProcessor]::KeyBlack($bmp)
-            [SpriteProcessor]::SaveTight($bmp, "$ArtDir/$name.png", $maxW, $maxH, $false)
+            [SpriteProcessor]::SaveTight($bmp, "$ArtDir/$name.png", $maxW, $maxH, $square)
             $bmp.Dispose()
             Write-Host "Saved $name.png"
         }
@@ -407,6 +407,57 @@ $arena = Latest "arena_backdrop_*.jpg"
 if ($arena) {
     [SpriteProcessor]::SaveResizedOpaque($arena, "$ArtDir/arena_bg.png", 512, 256)
     Write-Host "Saved arena_bg.png"
+}
+
+$arenaLava = Latest "volcanic_arena_backdrop_*.jpg"
+if ($arenaLava) {
+    [SpriteProcessor]::SaveResizedOpaque($arenaLava, "$ArtDir/arena_bg_lava.png", 512, 256)
+    Write-Host "Saved arena_bg_lava.png"
+}
+
+$arenaVoid = Latest "astral_void_crypt_arena_*.jpg"
+if ($arenaVoid) {
+    [SpriteProcessor]::SaveResizedOpaque($arenaVoid, "$ArtDir/arena_bg_void.png", 512, 256)
+    Write-Host "Saved arena_bg_void.png"
+}
+
+$sq3 = Latest "fantasy_squads_spritesheet_*.jpg"
+if ($sq3) {
+    $sq3Cfg = @(
+        @("squad_red_templar",     0.000, 0.348),
+        @("squad_yellow_valkyrie", 0.348, 0.678),
+        @("squad_purple_witch",    0.678, 1.000)
+    )
+    foreach ($s in $sq3Cfg) {
+        $bmp = [SpriteProcessor]::LoadCrop($sq3, $s[1], 0.0, $s[2], 1.0)
+        [SpriteProcessor]::KeyWhite($bmp, $true, $true)
+        [SpriteProcessor]::SaveTight($bmp, "$ArtDir/$($s[0]).png", 156, 136, $false)
+        $bmp.Dispose()
+        Write-Host "Saved $($s[0]).png"
+    }
+}
+
+$boosts = Latest "booster_icons_spritesheet_*.jpg"
+if ($boosts) { Slice-RowAuto $boosts @("boost_shuffle","boost_hammer","boost_moves") 96 96 $true $false }
+
+$vfx3 = Latest "match3_vfx_overlays_2x2_*.jpg"
+if ($vfx3) { Slice-GridBlack $vfx3 2 2 @("spec_line_h","spec_line_v","spec_bomb","obs_ice") 128 128 $true }
+
+$obs = Latest "dark_fantasy_match3_tiles_obstacles_*.jpg"
+if ($obs) {
+    $obsCfg = @(
+        @("obs_hole",      0.0, 0.0, 0.5, 0.5, $false, $false),
+        @("obs_stone",     0.5, 0.0, 1.0, 0.5, $false, $false),
+        @("obs_empowered", 0.0, 0.5, 0.5, 1.0, $true,  $true),
+        @("obs_curse",     0.5, 0.5, 1.0, 1.0, $true,  $false)
+    )
+    foreach ($o in $obsCfg) {
+        $bmp = [SpriteProcessor]::LoadCrop($obs, $o[1], $o[2], $o[3], $o[4])
+        [SpriteProcessor]::KeyWhite($bmp, $o[5], $o[6])
+        [SpriteProcessor]::SaveTight($bmp, "$ArtDir/$($o[0]).png", 128, 128, $true)
+        $bmp.Dispose()
+        Write-Host "Saved $($o[0]).png"
+    }
 }
 
 # Build dark-slate preview contact sheet of all extracted art

@@ -7,18 +7,18 @@ local M = {}
 
 -- Biomes: arena tint + palette for the world map.
 M.BIOMES = {
-	{ id = "woods",  name_key = "BIOME_1", tint = "#9fe0a0", path = "#5fbf6a" },
-	{ id = "crypt",  name_key = "BIOME_2", tint = "#a9c4ff", path = "#7f9bd9" },
-	{ id = "ash",    name_key = "BIOME_3", tint = "#ffb38a", path = "#e0743f" },
-	{ id = "void",   name_key = "BIOME_4", tint = "#d2a6ff", path = "#a865f0" },
-	{ id = "throne", name_key = "BIOME_5", tint = "#ff9a9a", path = "#e0445a" },
+	{ id = "woods",  name_key = "BIOME_1", tint = "#9fe0a0", path = "#5fbf6a", arena = "arena_bg" },
+	{ id = "crypt",  name_key = "BIOME_2", tint = "#a9c4ff", path = "#7f9bd9", arena = "arena_bg_void" },
+	{ id = "ash",    name_key = "BIOME_3", tint = "#ffb38a", path = "#e0743f", arena = "arena_bg_lava" },
+	{ id = "void",   name_key = "BIOME_4", tint = "#d2a6ff", path = "#a865f0", arena = "arena_bg_void" },
+	{ id = "throne", name_key = "BIOME_5", tint = "#ff9a9a", path = "#e0445a", arena = "arena_bg_lava" },
 }
 M.STAGES_PER_BIOME = 6
 
 local POOLS = {
-	red = { "red_militia", "red_spearmen", "red_wolves", "red_pyromancer", "red_berserk", "red_drake" },
-	yellow = { "yellow_archers", "yellow_falconer", "yellow_crossbow", "yellow_assassins", "yellow_paladin", "yellow_thunder" },
-	purple = { "purple_cultists", "purple_imps", "purple_necro", "purple_banshee", "purple_golem", "purple_reaper" },
+	red = { "red_militia", "red_spearmen", "red_wolves", "red_pyromancer", "red_templar", "red_berserk", "red_drake" },
+	yellow = { "yellow_archers", "yellow_falconer", "yellow_crossbow", "yellow_assassins", "yellow_valkyrie", "yellow_paladin", "yellow_thunder" },
+	purple = { "purple_cultists", "purple_imps", "purple_necro", "purple_witch", "purple_banshee", "purple_golem", "purple_reaper" },
 }
 
 local BIOME_FACES = {
@@ -32,11 +32,11 @@ local BIOME_FACES = {
 -- Hand-made onboarding stages (biome 1). HP / moves / levels come from the scaling model below
 -- unless set explicitly.
 local HAND = {
-	{ name_key = "ENEMY_SCOUT", face = "face_goblin", hp = 95, moves = 1, tutorial = true,
+	{ name_key = "ENEMY_SCOUT", face = "face_goblin", hp = 135, moves = 1, tutorial = true,
 	  squads = { red = "red_militia", yellow = "yellow_archers", purple = "purple_cultists" } },
-	{ name_key = "ENEMY_RAIDER", face = "face_goblin",
+	{ name_key = "ENEMY_RAIDER", face = "face_goblin", moves = 1,
 	  squads = { red = "red_spearmen", yellow = "yellow_falconer", purple = "purple_imps" } },
-	{ name_key = "ENEMY_SHAMAN", face = "face_goblin",
+	{ name_key = "ENEMY_SHAMAN", face = "face_goblin", moves = 2,
 	  squads = { red = "red_pyromancer", yellow = "yellow_archers", purple = "purple_cultists" } },
 	{ name_key = "ENEMY_WARCHIEF", face = "face_orc",
 	  squads = { red = "red_berserk", yellow = "yellow_assassins", purple = "purple_imps" } },
@@ -53,16 +53,16 @@ local ENEMY_KEYS = {
 local BOSS_KEYS = { "ENEMY_HUNTER", "ENEMY_LICH", "ENEMY_DRAKE", "ENEMY_DARK", "ENEMY_OVERLORD" }
 
 -- Expected player build when first reaching stage n (avg card level, moves, commander HP).
--- Enemies are scaled against it; the simulation in tools/ calibrates HP_K / BOSS_K.
+-- Enemies are scaled against it; the simulation calibrates HP_K / BOSS_K.
 function M.expected_build(n)
 	local lvl = 1 + math.floor((n - 1) / 4)
-	local moves = math.min(config.MAX_MOVES, 1 + math.floor((n - 1) / 5))
+	local moves = math.min(config.MAX_MOVES, config.START_MOVES + math.floor((n - 1) / 5))
 	local cmd = 1 + 3 * (lvl - 1) + math.floor(n / 2)
 	return lvl, moves, config.commander_hp(cmd, moves, 0)
 end
 
-M.HP_K = 0.8
-M.BOSS_K = 1.15
+M.HP_K = 0.66
+M.BOSS_K = 1.12
 -- Gentle onboarding ramp: early enemies get less HP
 local function hp_ramp(n)
 	if n <= 6 then return 0.62 + n * 0.02 end
@@ -82,13 +82,32 @@ function M.level_for_power(id, col, lvl)
 	return math.max(1, math.min(10, math.floor(1 + (target / eff - 1) / 0.22 + 0.5)))
 end
 
+local function stage_board_cfg(n)
+	if n <= 3 then return nil end
+	if n == 4 then return { empowered = 2, allow_empowered = true }
+	elseif n == 5 then return { holes = { { 4, 4 } }, empowered = 1, allow_empowered = true }
+	elseif n == 6 then return { holes = { { 4, 4 } }, stones = { { 2, 2, 1 }, { 6, 6, 1 } }, empowered = 2, allow_empowered = true }
+	elseif n <= 8 then return { ice = 2, empowered = 1, allow_empowered = true, freeze_chance = 0.25 }
+	elseif n <= 10 then return { holes = { { 4, 4 } }, ice = 2, curses = 1, allow_empowered = true }
+	elseif n <= 12 then return { stones = { { 3, 3, 2 }, { 5, 5, 2 } }, ice = 2, curses = 1, empowered = 2, allow_empowered = true, freeze_chance = 0.30 }
+	elseif n <= 14 then return { stones = { { 2, 4, 2 }, { 6, 4, 2 } }, empowered = 2, allow_empowered = true }
+	elseif n <= 16 then return { holes = { { 3, 4 }, { 5, 4 } }, stones = { { 4, 2, 1 }, { 4, 6, 1 } }, allow_empowered = true }
+	elseif n <= 18 then return { holes = { { 4, 4 } }, stones = { { 2, 2, 2 }, { 2, 6, 2 }, { 6, 2, 2 }, { 6, 6, 2 } }, empowered = 2, allow_empowered = true }
+	elseif n <= 20 then return { holes = { { 4, 4 } }, curses = 2, allow_empowered = true, curse_chance = 0.25 }
+	elseif n <= 22 then return { ice = 3, curses = 1, empowered = 2, allow_empowered = true, freeze_chance = 0.30 }
+	elseif n <= 24 then return { holes = { { 4, 3 }, { 4, 5 } }, stones = { { 2, 4, 2 }, { 6, 4, 2 } }, curses = 2, allow_empowered = true, freeze_chance = 0.25 }
+	elseif n <= 27 then return { holes = { { 4, 4 } }, stones = { { 2, 2, 2 }, { 6, 6, 2 } }, ice = 2, curses = 1, empowered = 2, allow_empowered = true, freeze_chance = 0.25 }
+	else return { holes = { { 4, 4 } }, stones = { { 3, 3, 2 }, { 5, 5, 2 } }, ice = 2, curses = 2, empowered = 2, allow_empowered = true, freeze_chance = 0.30, curse_chance = 0.25 }
+	end
+end
+
 local function gen_stage(n, hand)
 	local r = rng.new(n * 7919 + 17)
 	local biome = math.floor((n - 1) / M.STAGES_PER_BIOME) + 1
 	local in_biome = (n - 1) % M.STAGES_PER_BIOME + 1
 	local boss = in_biome == M.STAGES_PER_BIOME
 	local lvl, moves, hp = M.expected_build(n)
-	local tier = math.min(6, 1 + math.floor((n + 2) / 5))
+	local tier = math.min(7, 1 + math.floor((n + 2) / 5))
 	local squads = {}
 	for _, col in ipairs(config.ATTACK_COLORS) do
 		local pool = POOLS[col]
@@ -108,6 +127,7 @@ local function gen_stage(n, hand)
 		gold = 40 + n * 12,
 		squads = squads,
 		boss = boss,
+		board_cfg = stage_board_cfg(n),
 	}
 	if hand then
 		for k, v in pairs(hand) do
@@ -175,12 +195,13 @@ function M.pvp_opponent(prestige, seed, player_power)
 	local diff = tier >= 4 and 3 or (tier >= 2 and 2 or 1)
 	local roll = r:float()
 	local chest = roll < 0.10 and "royal" or (roll < 0.42 and "silver" or "wood")
-	local pool_top = math.max(2, math.min(6, 2 + math.floor(tier / 2)))
+	local pool_top = math.max(2, math.min(7, 2 + math.floor(tier / 2)))
 	local sq = {}
 	for _, col in ipairs(config.ATTACK_COLORS) do
 		local id = POOLS[col][r:int(1, pool_top)]
 		sq[col] = { id = id, lvl = M.level_for_power(id, col, lvl) }
 	end
+	local arena_list = { "arena_bg", "arena_bg_void", "arena_bg_lava" }
 	return {
 		is_pvp = true,
 		name = r:pick(PVP_NAMES),
@@ -192,6 +213,8 @@ function M.pvp_opponent(prestige, seed, player_power)
 		chest = chest,
 		gold = 45 + tier * 18,
 		squads = sq,
+		arena = arena_list[(tier % #arena_list) + 1],
+		board_cfg = { empowered = 2, allow_empowered = true, holes = tier >= 2 and { { 4, 4 } } or nil },
 	}
 end
 

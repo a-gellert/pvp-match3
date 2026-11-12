@@ -87,22 +87,6 @@ embedded_components {
   "gain: 1.0\n"
 }
 embedded_components {
-  id: "upgrade"
-  type: "sound"
-  data: "sound: \"/main/assets/sounds/upgrade.wav\"\n"
-  "looping: 0\n"
-  "group: \"sfx\"\n"
-  "gain: 1.0\n"
-}
-embedded_components {
-  id: "chest"
-  type: "sound"
-  data: "sound: \"/main/assets/sounds/chest.wav\"\n"
-  "looping: 0\n"
-  "group: \"sfx\"\n"
-  "gain: 1.0\n"
-}
-embedded_components {
   id: "win"
   type: "sound"
   data: "sound: \"/main/assets/sounds/win.wav\"\n"
@@ -151,46 +135,6 @@ embedded_components {
   "gain: 1.0\n"
 }
 embedded_components {
-  id: "levelup"
-  type: "sound"
-  data: "sound: \"/main/assets/sounds/levelup.wav\"\n"
-  "looping: 0\n"
-  "group: \"sfx\"\n"
-  "gain: 1.0\n"
-}
-embedded_components {
-  id: "quest"
-  type: "sound"
-  data: "sound: \"/main/assets/sounds/quest.wav\"\n"
-  "looping: 0\n"
-  "group: \"sfx\"\n"
-  "gain: 1.0\n"
-}
-embedded_components {
-  id: "flip"
-  type: "sound"
-  data: "sound: \"/main/assets/sounds/flip.wav\"\n"
-  "looping: 0\n"
-  "group: \"sfx\"\n"
-  "gain: 1.0\n"
-}
-embedded_components {
-  id: "turn"
-  type: "sound"
-  data: "sound: \"/main/assets/sounds/turn.wav\"\n"
-  "looping: 0\n"
-  "group: \"sfx\"\n"
-  "gain: 1.0\n"
-}
-embedded_components {
-  id: "notify"
-  type: "sound"
-  data: "sound: \"/main/assets/sounds/notify.wav\"\n"
-  "looping: 0\n"
-  "group: \"sfx\"\n"
-  "gain: 1.0\n"
-}
-embedded_components {
   id: "death"
   type: "sound"
   data: "sound: \"/main/assets/sounds/death.wav\"\n"
@@ -221,12 +165,4 @@ embedded_components {
   "looping: 0\n"
   "group: \"sfx\"\n"
   "gain: 1.0\n"
-}
-embedded_components {
-  id: "music"
-  type: "sound"
-  data: "sound: \"/main/assets/sounds/music.wav\"\n"
-  "looping: 1\n"
-  "group: \"music\"\n"
-  "gain: 0.55\n"
 }

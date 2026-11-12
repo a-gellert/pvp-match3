@@ -1,38 +1,124 @@
--- Sound effects + looping music (components live on main:/sounds). Groups: sfx, music, master.
+-- Sound effects + deferred WebAudio loader for music and secondary meta SFX.
+-- Critical battle/UI SFX live in main:/sounds; music + non-critical meta SFX load post-boot.
 local M = {}
 
 local URL = "main:/sounds#"
 local SFX = hash("sfx")
 local MUSIC = hash("music")
 local MASTER = hash("master")
-local MUSIC_GAIN = 0.8
+local MUSIC_GAIN = 0.55
+
+local LAZY_FALLBACK = {
+	levelup = "star",
+	chest = "star",
+	quest = "coin",
+	upgrade = "coin",
+	flip = "tap",
+	turn = "turn_you",
+	notify = "tap",
+}
 
 local sound_on = true
 local music_on = true
+local ad_muted = false
 local music_started = false
+local deferred_started = false
 local last_played = {}
 local clock = 0
+
+local function sync_web_gains()
+	if not html5 then return end
+	pcall(html5.run, string.format(
+		"window._gvAudio && window._gvAudio.gains(%s,%s,%s)",
+		ad_muted and "0" or "1",
+		sound_on and "1" or "0",
+		music_on and tostring(MUSIC_GAIN) or "0"
+	))
+end
 
 function M.update(dt)
 	clock = clock + dt
 end
 
 function M.play(name, gain, speed)
-	if not sound_on or not name then return end
+	if not sound_on or ad_muted or not name then return end
 	if last_played[name] and clock - last_played[name] < 0.04 then return end
 	last_played[name] = clock
+	if LAZY_FALLBACK[name] then
+		if html5 then
+			local ok, played = pcall(html5.run, string.format(
+				"window._gvAudio ? window._gvAudio.play('%s',%s,%s) : false",
+				name, tostring(gain or 1), tostring(speed or 1)
+			))
+			if ok and played == "true" or played == true then return end
+		end
+		name = LAZY_FALLBACK[name]
+	end
 	pcall(sound.play, URL .. name, { gain = gain or 1, speed = speed or 1 })
 end
 
 local function apply()
 	pcall(sound.set_group_gain, SFX, sound_on and 1 or 0)
 	pcall(sound.set_group_gain, MUSIC, music_on and MUSIC_GAIN or 0)
+	sync_web_gains()
+end
+
+function M.load_deferred(base_url)
+	if deferred_started or not html5 then return end
+	deferred_started = true
+	local b = (base_url or ""):gsub("'", "")
+	local js = [[
+	(function(base){
+		if(window._gvAudio)return;
+		var AC=window.AudioContext||window.webkitAudioContext;
+		if(!AC)return;
+		var ctx=new AC();
+		var master=ctx.createGain(), sfxG=ctx.createGain(), musG=ctx.createGain();
+		sfxG.connect(master); musG.connect(master); master.connect(ctx.destination);
+		var bufs={}, musStarted=false, musWant=]] .. (music_on and "true" or "false") .. [[;
+		var unlock=function(){if(ctx.state==='suspended')ctx.resume().catch(function(){});};
+		['pointerdown','touchstart','keydown'].forEach(function(e){window.addEventListener(e,unlock,{passive:true});});
+		var startMus=function(){
+			if(musStarted||!musWant||!bufs.music)return;
+			musStarted=true;
+			var src=ctx.createBufferSource();
+			src.buffer=bufs.music; src.loop=true; src.connect(musG); src.start(0);
+		};
+		var loadOne=function(name){
+			return fetch(base+'lazy/sfx/'+name+'.wav').then(function(r){return r.ok?r.arrayBuffer():null;}).then(function(ab){
+				return ab?ctx.decodeAudioData(ab):null;
+			}).then(function(b){if(b){bufs[name]=b;if(name==='music')startMus();}}).catch(function(){});
+		};
+		window._gvAudio={
+			gains:function(m,s,mu){
+				master.gain.value=m; sfxG.gain.value=s; musG.gain.value=mu;
+				musWant=mu>0; if(musWant)startMus();
+			},
+			play:function(name,g,sp){
+				var b=bufs[name]; if(!b)return false;
+				unlock();
+				var src=ctx.createBufferSource(), gn=ctx.createGain();
+				src.buffer=b; src.playbackRate.value=sp||1; gn.gain.value=g||1;
+				src.connect(gn); gn.connect(sfxG); src.start(0);
+				return true;
+			},
+			startMusic:function(){musWant=true;unlock();startMus();}
+		};
+		window._gvAudio.gains(]] .. (ad_muted and "0" or "1") .. [[,]] .. (sound_on and "1" or "0") .. [[,]] .. (music_on and tostring(MUSIC_GAIN) or "0") .. [[);
+		['music','chest','levelup','quest','upgrade','flip','turn','notify'].reduce(function(p,n){
+			return p.then(function(){return loadOne(n);});
+		}, Promise.resolve());
+	})(']] .. b .. [[');
+	]]
+	pcall(html5.run, js)
 end
 
 function M.start_music()
 	if music_started then return end
 	music_started = true
-	pcall(sound.play, URL .. "music")
+	if html5 then
+		pcall(html5.run, "window._gvAudio && window._gvAudio.startMusic()")
+	end
 end
 
 function M.set(sound_enabled, music_enabled)
@@ -44,7 +130,9 @@ end
 
 -- Poki: all audio must be silent while an ad is playing.
 function M.ad_mute(muted)
+	ad_muted = muted
 	pcall(sound.set_group_gain, MASTER, muted and 0 or 1)
+	sync_web_gains()
 end
 
 function M.is_music()

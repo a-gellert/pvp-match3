@@ -132,23 +132,36 @@ B.win = function(app, root, data)
 	local by = -h / 2 + 150
 	local can_next = s and s.mode == "campaign" and (progress.data.max_stage_unlocked or 1) > (data.stage_id or 0)
 		and (data.stage_id or 0) < campaign.COUNT
-	if can_next and progress.data.onboarding_done then
-		ui.btn(p, "btn_gold", 0, by, w - 120, 76, i18n.t("NEXT_STAGE"), 28, function() app.next_stage() end, { icon = "icon_play", icon_size = 40 })
-	else
-		ui.btn(p, "btn_gold", 0, by, w - 120, 76, i18n.t("CONTINUE"), 28, function()
+	local ob_battles = not progress.data.onboarding_done and progress.data.onboarding_step == 0
+	if ob_battles and can_next then
+		-- Seamless first 3 battles: straight into the next fight without Hub bounce.
+		ui.btn(p, "btn_gold", 0, by - 36, w - 120, 82, i18n.t("NEXT_GO"), 30, function() app.next_stage() end,
+			{ icon = "icon_play", icon_size = 44, pulse = true })
+	elseif not progress.data.onboarding_done then
+		-- Stage 3 won: open the Hub with chests, cards and prestige unlocked.
+		ui.btn(p, "btn_gold", 0, by - 36, w - 120, 82, i18n.t("OPEN_HUB"), 30, function()
 			app.close_popup(true)
-			app.show_hub(progress.data.onboarding_step == 1 and "cards" or "home")
+			app.show_hub("home")
+		end, { icon = "icon_cards", icon_size = 44, pulse = true })
+	else
+		if can_next then
+			ui.btn(p, "btn_gold", 0, by, w - 120, 76, i18n.t("NEXT_STAGE"), 28, function() app.next_stage() end, { icon = "icon_play", icon_size = 40 })
+		else
+			ui.btn(p, "btn_gold", 0, by, w - 120, 76, i18n.t("CONTINUE"), 28, function()
+				app.close_popup(true)
+				app.show_hub("home")
+			end)
+		end
+		local half = (w - 140) / 2
+		ui.btn(p, "btn_dark", -half / 2 - 10, by - 88, half, 66, i18n.t("TO_HUB"), 22, function()
+			app.close_popup(true)
+			app.show_hub("home")
 		end)
-	end
-	local half = (w - 140) / 2
-	ui.btn(p, "btn_dark", -half / 2 - 10, by - 88, half, 66, i18n.t("TO_HUB"), 22, function()
-		app.close_popup(true)
-		app.show_hub(progress.data.onboarding_step == 1 and "cards" or "home")
-	end)
-	if not data.doubled and (data.gold or 0) > 0 and progress.data.onboarding_done then
-		ui.btn(p, "btn_purple", half / 2 + 10, by - 88, half, 66, i18n.t("DOUBLE_GOLD"), 22, function()
-			app.reward_double_gold(data)
-		end, { icon = "icon_ad", icon_size = 30 })
+		if not data.doubled and (data.gold or 0) > 0 then
+			ui.btn(p, "btn_purple", half / 2 + 10, by - 88, half, 66, i18n.t("DOUBLE_GOLD"), 22, function()
+				app.reward_double_gold(data)
+			end, { icon = "icon_ad", icon_size = 30 })
+		end
 	end
 end
 
@@ -166,8 +179,12 @@ B.lose = function(app, root, data)
 	ui.label(p, i18n.t(tips[math.random(1, #tips)]), 0, y - 70, 19, ui.DIM, w - 70, { lines = 2 })
 	local by = -h / 2 + 170
 	local half = (w - 140) / 2
-	ui.btn(p, "btn_gold", -half / 2 - 10, by, half, 76, i18n.t("RETRY"), 26, function() app.retry_battle() end)
-	ui.btn(p, "btn_dark", half / 2 + 10, by, half, 76, i18n.t("TO_HUB"), 24, function() app.leave_battle("cards") end)
+	if progress.data.onboarding_step == 0 then
+		ui.btn(p, "btn_gold", 0, by, w - 140, 76, i18n.t("RETRY"), 26, function() app.retry_battle() end, { pulse = true })
+	else
+		ui.btn(p, "btn_gold", -half / 2 - 10, by, half, 76, i18n.t("RETRY"), 26, function() app.retry_battle() end)
+		ui.btn(p, "btn_dark", half / 2 + 10, by, half, 76, i18n.t("TO_HUB"), 24, function() app.leave_battle("cards") end)
+	end
 	if data.can_revive then
 		-- Poki: the rewarded button is never bigger than the plain alternatives above it
 		ui.btn(p, "btn_purple", 0, by - 90, half, 66, i18n.t("SECOND_CHANCE"), 22, function()
@@ -277,7 +294,7 @@ B.chest_info = function(app, root, data)
 	local by = -h / 2 + 200
 	if not slot.unlocking then
 		if not progress.any_chest_unlocking() then
-			ui.btn(p, "btn_gold", 0, by, w - 120, 76, i18n.t("START_UNLOCK", { t = i18n.fmt_time(def.duration) }), 24, function()
+			ui.btn(p, "btn_gold", 0, by, w - 120, 76, i18n.t("START_UNLOCK", { t = i18n.fmt_time(progress.chest_duration(i)) }), 24, function()
 				progress.start_chest(i)
 				audio.play("upgrade")
 				app.close_popup()
@@ -806,10 +823,14 @@ end
 function M.on_back(app)
 	local kind = app.popup and app.popup.kind
 	if kind == "win" then
-		app.close_popup(true)
-		app.show_hub()
+		if progress.data.onboarding_step == 0 then
+			app.next_stage()
+		else
+			app.close_popup(true)
+			app.show_hub("home")
+		end
 	elseif kind == "lose" then
-		app.leave_battle()
+		if progress.data.onboarding_step == 0 then app.retry_battle() else app.leave_battle() end
 	elseif kind == "pause" then
 		app.resume_battle()
 	elseif kind == "pvp_search" or kind == "chest" then
