@@ -189,7 +189,7 @@ function app.start_campaign(stage_id, skip_break)
 		app.rebuild(true)
 		poki.measure("battle", "campaign_" .. stg.id, "start")
 	end
-	if skip_break or not progress.data.onboarding_done then go() else poki.commercial_break((progress.data.stats.battles or 0) + 1, go) end
+	if skip_break or config.VIDEO_MODE or not progress.data.onboarding_done then go() else poki.commercial_break((progress.data.stats.battles or 0) + 1, go) end
 end
 
 function app.start_pvp_search()
@@ -223,7 +223,7 @@ function app.launch_pvp(opp)
 		app.rebuild(true)
 		poki.measure("battle", "pvp", "start")
 	end
-	poki.commercial_break((d.stats.battles or 0) + 1, go)
+	if config.VIDEO_MODE then go() else poki.commercial_break((d.stats.battles or 0) + 1, go) end
 end
 
 -- ---------------------------------------------------------------- battle results

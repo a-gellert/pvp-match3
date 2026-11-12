@@ -1,6 +1,10 @@
 -- Balance constants and rules for Gem Vanguard (pure Lua).
 local M = {}
 
+-- Set to true to launch with a high-level video-recording profile (high level/HP,
+-- 5 moves, upgraded legendary squads, full collection, currencies, boosters and chests).
+M.VIDEO_MODE = false
+
 M.GRID = 7
 M.COLORS = { "red", "yellow", "purple", "green", "blue" }
 M.COLOR_INDEX = { red = 1, yellow = 2, purple = 3, green = 4, blue = 5 }

@@ -56,7 +56,59 @@ end
 
 M.data = default_data()
 
+local function video_data()
+	local d = default_data()
+	d.gold = 28500
+	d.diamonds = 2400
+	d.prestige = 2150
+	d.max_prestige = 2150
+	d.max_moves = 5
+	d.commander_lvl = 24
+	d.max_stage_unlocked = 18
+	d.onboarding_done = true
+	d.onboarding_step = 2
+	d.slots = {
+		red = "red_drake",
+		yellow = "yellow_thunder",
+		purple = "purple_reaper",
+	}
+	for _, s in ipairs(squads.LIST) do
+		local c = d.cards[s.id]
+		c.unlocked = true
+		if s.rarity == "legendary" then
+			c.level = 7
+			c.count = s.id == "yellow_thunder" and 25 or 40
+		elseif s.rarity == "epic" then
+			c.level = 7
+			c.count = 65
+		elseif s.rarity == "rare" then
+			c.level = 6
+			c.count = 45
+		else
+			c.level = 7
+			c.count = 120
+		end
+	end
+	d.chests = {
+		{ rarity = "royal", duration = config.CHESTS.royal.duration, unlocking = true, end_time = 0 },
+		{ rarity = "silver", duration = config.CHESTS.silver.duration, unlocking = true, end_time = 0 },
+		{ rarity = "royal", duration = config.CHESTS.royal.duration, unlocking = true, end_time = quests.now() + 3600 },
+		{ rarity = "wood", duration = config.CHESTS.wood.duration, unlocking = false, end_time = 0 },
+	}
+	d.boosters = { shuffle = 15, hammer = 15, extra_move = 15 }
+	d.stars = { 3, 3, 2, 3, 3, 3, 2, 3, 3, 3, 2, 3, 3, 2, 3, 3, 3 }
+	d.star_chests = 6
+	d.road_claimed = 23
+	d.free_chest_at = 0
+	d.streak = 4
+	d.best_streak = 7
+	d.stats = { battles = 64, wins = 52, pvp_wins = 28, chests = 38, chests_earned = 38, upgrades = 23 }
+	d.login = { last_day = quests.today(), count = 6 }
+	return d
+end
+
 function M.save()
+	if config.VIDEO_MODE then return end
 	local path = sys.get_save_file("GemVanguard", SAVE_FILE)
 	sys.save(path, M.data)
 end
@@ -72,7 +124,9 @@ local function merge_defaults(dst, def)
 end
 
 function M.load(fresh)
-	if fresh then
+	if config.VIDEO_MODE then
+		M.data = video_data()
+	elseif fresh then
 		M.data = default_data()
 	else
 		local path = sys.get_save_file("GemVanguard", SAVE_FILE)
