@@ -1,4 +1,38 @@
 {
+  :bundle {
+    :android {
+      :architectures #{
+        "arm64-android"
+      }
+      :build_report false
+      :bundle_format #{
+        "apk"
+      }
+      :contentless false
+      :install false
+      :key-pass "D:\\DProjects\\1k.txt"
+      :keystore "D:\\DProjects\\gemvanguard.keystore"
+      :keystore-pass "D:\\DProjects\\1k.txt"
+      :launch false
+      :liveupdate false
+      :texture_compression "enabled"
+      :variant "release"
+      :with_symbols false
+    }
+    :last-bundle-command :project.bundle-android
+    :output-directory "D:\\DProjects\\pvp-match3\\pvp"
+    :poki {
+      :architectures #{
+        "wasm-web"
+      }
+      :build_report false
+      :contentless false
+      :liveupdate false
+      :texture_compression "enabled"
+      :variant "release"
+      :with_symbols false
+    }
+  }
   :code {
     :breakpoints [
     ]
@@ -10,12 +44,20 @@
   :workflow {
     :open-tabs [
       [
+        [
+          "/promo/gem_vanguard_portrait_800x1200.png"
+          :scene
+        ]
       ]
     ]
     :recent-files [
       [
         "/README.md"
         :html
+      ]
+      [
+        "/promo/gem_vanguard_portrait_800x1200.png"
+        :scene
       ]
     ]
   }

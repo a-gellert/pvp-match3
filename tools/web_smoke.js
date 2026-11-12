@@ -19,8 +19,20 @@ const PORT = 8760 + Math.floor(Math.random() * 400);
 const DBG_PORT = 9360 + Math.floor(Math.random() * 400);
 const BROWSER = (process.env.BROWSER_PATH && fs.existsSync(process.env.BROWSER_PATH) ? process.env.BROWSER_PATH : null) || [
   'C:/Program Files (x86)/Microsoft/Edge/Application/msedge.exe',
+  'C:/Program Files/Microsoft/Edge/Application/msedge.exe',
   'C:/Program Files/Google/Chrome/Application/chrome.exe',
-].find(p => fs.existsSync(p));
+  'C:/Program Files (x86)/Google/Chrome/Application/chrome.exe',
+  ...(() => {
+    try {
+      const coreDir = 'C:/Program Files (x86)/Microsoft/EdgeCore';
+      if (fs.existsSync(coreDir)) {
+        const sub = fs.readdirSync(coreDir).filter(f => fs.existsSync(path.join(coreDir, f, 'msedge.exe'))).pop();
+        if (sub) return [path.join(coreDir, sub, 'msedge.exe')];
+      }
+    } catch {}
+    return [];
+  })(),
+].find(p => p && fs.existsSync(p));
 
 if (!BROWSER) { console.error('No Edge/Chrome found'); process.exit(1); }
 fs.mkdirSync(OUT, { recursive: true });
@@ -55,7 +67,7 @@ function patchedIndex() {
   return html;
 }
 
-const MIME = { '.html': 'text/html', '.js': 'application/javascript', '.wasm': 'application/wasm', '.css': 'text/css', '.png': 'image/png', '.json': 'application/json' };
+const MIME = { '.html': 'text/html', '.js': 'application/javascript', '.wasm': 'application/wasm', '.css': 'text/css', '.png': 'image/png', '.json': 'application/json', '.wav': 'audio/wav' };
 const srv = http.createServer((req, res) => {
   const url = decodeURIComponent(req.url.split('?')[0]);
   if (url === '/' || url === '/index.html') {
@@ -124,6 +136,7 @@ srv.listen(PORT, '127.0.0.1', async () => {
     console.log('Saved screenshot:', p);
   };
   const mouse = (type, x, y) => cdp('Input.dispatchMouseEvent', { type, x, y, button: 'left', clickCount: 1 });
+  const touch = (type, touchPoints) => cdp('Input.dispatchTouchEvent', { type, touchPoints });
 
   if (!opt.steps) {
     await sleep(Number(opt.secs) * 1000);
@@ -139,6 +152,21 @@ srv.listen(PORT, '127.0.0.1', async () => {
         await mouse('mousePressed', n[0], n[1]);
         await sleep(80);
         await mouse('mouseReleased', n[0], n[1]);
+        await sleep(150);
+      } else if (cmd === 'touchtap') {
+        await cdp('Emulation.setTouchEmulationEnabled', { enabled: true });
+        await touch('touchStart', [{ x: n[0], y: n[1], id: 0 }]);
+        await sleep(80);
+        await touch('touchEnd', []);
+        await sleep(150);
+      } else if (cmd === 'touchdrag') {
+        await cdp('Emulation.setTouchEmulationEnabled', { enabled: true });
+        await touch('touchStart', [{ x: n[0], y: n[1], id: 0 }]);
+        for (let k = 1; k <= 6; k++) {
+          await sleep(25);
+          await touch('touchMove', [{ x: n[0] + (n[2] - n[0]) * k / 6, y: n[1] + (n[3] - n[1]) * k / 6, id: 0 }]);
+        }
+        await touch('touchEnd', []);
         await sleep(150);
       } else if (cmd === 'drag') {
         await mouse('mouseMoved', n[0], n[1]);

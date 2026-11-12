@@ -31,9 +31,33 @@ embedded_components {
   "gain: 1.0\n"
 }
 embedded_components {
+  id: "combo"
+  type: "sound"
+  data: "sound: \"/main/assets/sounds/combo.wav\"\n"
+  "looping: 0\n"
+  "group: \"sfx\"\n"
+  "gain: 1.0\n"
+}
+embedded_components {
   id: "hit"
   type: "sound"
   data: "sound: \"/main/assets/sounds/hit.wav\"\n"
+  "looping: 0\n"
+  "group: \"sfx\"\n"
+  "gain: 1.0\n"
+}
+embedded_components {
+  id: "crit"
+  type: "sound"
+  data: "sound: \"/main/assets/sounds/crit.wav\"\n"
+  "looping: 0\n"
+  "group: \"sfx\"\n"
+  "gain: 1.0\n"
+}
+embedded_components {
+  id: "slash"
+  type: "sound"
+  data: "sound: \"/main/assets/sounds/slash.wav\"\n"
   "looping: 0\n"
   "group: \"sfx\"\n"
   "gain: 1.0\n"
@@ -50,14 +74,6 @@ embedded_components {
   id: "spell"
   type: "sound"
   data: "sound: \"/main/assets/sounds/spell.wav\"\n"
-  "looping: 0\n"
-  "group: \"sfx\"\n"
-  "gain: 1.0\n"
-}
-embedded_components {
-  id: "slash"
-  type: "sound"
-  data: "sound: \"/main/assets/sounds/slash.wav\"\n"
   "looping: 0\n"
   "group: \"sfx\"\n"
   "gain: 1.0\n"
@@ -82,6 +98,22 @@ embedded_components {
   id: "shield"
   type: "sound"
   data: "sound: \"/main/assets/sounds/shield.wav\"\n"
+  "looping: 0\n"
+  "group: \"sfx\"\n"
+  "gain: 1.0\n"
+}
+embedded_components {
+  id: "turn_you"
+  type: "sound"
+  data: "sound: \"/main/assets/sounds/turn_you.wav\"\n"
+  "looping: 0\n"
+  "group: \"sfx\"\n"
+  "gain: 1.0\n"
+}
+embedded_components {
+  id: "turn_enemy"
+  type: "sound"
+  data: "sound: \"/main/assets/sounds/turn_enemy.wav\"\n"
   "looping: 0\n"
   "group: \"sfx\"\n"
   "gain: 1.0\n"
@@ -127,41 +159,9 @@ embedded_components {
   "gain: 1.0\n"
 }
 embedded_components {
-  id: "combo"
-  type: "sound"
-  data: "sound: \"/main/assets/sounds/combo.wav\"\n"
-  "looping: 0\n"
-  "group: \"sfx\"\n"
-  "gain: 1.0\n"
-}
-embedded_components {
   id: "death"
   type: "sound"
   data: "sound: \"/main/assets/sounds/death.wav\"\n"
-  "looping: 0\n"
-  "group: \"sfx\"\n"
-  "gain: 1.0\n"
-}
-embedded_components {
-  id: "crit"
-  type: "sound"
-  data: "sound: \"/main/assets/sounds/crit.wav\"\n"
-  "looping: 0\n"
-  "group: \"sfx\"\n"
-  "gain: 1.0\n"
-}
-embedded_components {
-  id: "turn_you"
-  type: "sound"
-  data: "sound: \"/main/assets/sounds/turn_you.wav\"\n"
-  "looping: 0\n"
-  "group: \"sfx\"\n"
-  "gain: 1.0\n"
-}
-embedded_components {
-  id: "turn_enemy"
-  type: "sound"
-  data: "sound: \"/main/assets/sounds/turn_enemy.wav\"\n"
   "looping: 0\n"
   "group: \"sfx\"\n"
   "gain: 1.0\n"

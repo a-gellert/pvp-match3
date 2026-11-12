@@ -20,9 +20,18 @@
 
 	body {
 		background-color: #111521;
+		touch-action: none;
+		-webkit-touch-callout: none;
+		-webkit-user-select: none;
+		user-select: none;
+	}
+
+	#canvas {
+		touch-action: none;
 	}
 
 	.canvas-app-container {
 		background: #111521;
 		background: linear-gradient(180deg, #1a2033 0%, #0d1019 100%);
+		touch-action: none;
 	}

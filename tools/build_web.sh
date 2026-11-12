@@ -1,6 +1,7 @@
 #!/bin/sh
 VARIANT=${1:-debug}
-DEFOLD=${DEFOLD:-"C:/Program Files (x86)/Defold"}
+DEFOLD=${DEFOLD:-"D:/Programs/Defold"}
+[ -d "$DEFOLD" ] || DEFOLD="C:/Program Files (x86)/Defold"
 [ -d "$DEFOLD" ] || DEFOLD="C:/Defold"
 JAVA=$(ls -d "$DEFOLD"/packages/jdk-*/bin/java.exe | tail -1)
 JAR=$(ls "$DEFOLD"/packages/defold-*.jar | head -1)

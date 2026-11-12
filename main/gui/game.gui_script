@@ -26,6 +26,7 @@ local i18n = require "main.modules.i18n"
 local loader = require "main.modules.loader"
 
 local TOUCH = hash("touch")
+local TOUCH_MULTI = hash("touch_multi")
 
 local app = { tab = "home", queue = {} }
 
@@ -51,9 +52,11 @@ function app.rebuild(with_fade)
 	ui.open_layer("screen")
 	ui.druid:new_back_handler(function() ui.defer(app.on_back) end)
 	if app.screen == "battle" and app.session then
+		audio.set_music("battle")
 		battle_view.build(app, app.screen_layer)
 	else
 		app.screen = "hub"
+		audio.set_music("hub")
 		hub_view.build(app, app.screen_layer)
 	end
 	if app.popup then
@@ -480,14 +483,25 @@ end
 
 function on_input(self, action_id, action)
 	if poki.is_ad_active() then return true end
+	local kx, ky = app.vw / app.dw, app.vh / app.dh
 	if action.x then
 		-- Druid hit-tests with gui.pick_node; our GUI lives in the virtual canvas
 		-- (adjust reference disabled), so convert screen -> virtual units once here.
-		local kx, ky = app.vw / app.dw, app.vh / app.dh
 		action.x, action.y = action.x * kx, action.y * ky
 		if action.dx then action.dx, action.dy = action.dx * kx, action.dy * ky end
 	end
-	if action_id == TOUCH and action.pressed then audio.start_music() end
+	if action.touch then
+		for i = 1, #action.touch do
+			local t = action.touch[i]
+			if t.x then t.x, t.y = t.x * kx, t.y * ky end
+			if t.dx then t.dx, t.dy = t.dx * kx, t.dy * ky end
+		end
+		if not action.x and action.touch[1] then
+			action.x, action.y = action.touch[1].x, action.touch[1].y
+		end
+	end
+	local pressed = action.pressed or (action.touch and action.touch[1] and action.touch[1].pressed)
+	if (action_id == TOUCH or action_id == TOUCH_MULTI) and pressed then audio.start_music() end
 	local layer = app.popup and "popup" or "screen"
 	local d = ui.layers[layer]
 	if d then

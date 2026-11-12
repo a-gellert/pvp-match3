@@ -1,10 +1,66 @@
 -- GUI toolkit on top of Druid: palette, node factories, Druid buttons/texts/progress/scrolls,
 -- layers (screen / popup, one Druid instance each), tweens and juicy FX.
 local druid = require "druid.druid"
+local druid_drag = require "druid.base.drag"
+local druid_const = require "druid.const"
+local druid_helper = require "druid.helper"
 local druid_style = require "main.gui.druid_style"
 local audio = require "main.modules.audio"
 local loader = require "main.modules.loader"
 local sizes = require "main.gui.sprite_sizes"
+
+-- Defold dispatches TOUCH_MULTI (action.touch) for touch swipes on both native Android/iOS
+-- and HTML5 mobile browsers, while mouse emulation only sends tap start/end without move
+-- deltas. Druid's built-in drag checks helper.is_mobile() (false in HTML5), so mobile web
+-- dropped touch_multi; handle native mobile, mobile web, and touch/mouse switching cleanly.
+local function is_coarse_web()
+	return html5 and html5.run("window.matchMedia && window.matchMedia('(pointer: coarse)').matches") == "true" or false
+end
+
+local IS_COARSE_WEB = is_coarse_web()
+druid_drag._find_touch = function(self, action_id, action, touch_id)
+	if not self._allowed_drag_actions[action_id] then
+		return
+	end
+	if action_id == druid_const.ACTION_MULTITOUCH then
+		self._prefer_multi = true
+		if action.touch then
+			local all_released = true
+			for i = 1, #action.touch do
+				if not action.touch[i].released then
+					all_released = false
+					break
+				end
+			end
+			if all_released then
+				self._skip_touch_until_press = true
+			end
+		end
+	elseif action_id == druid_const.ACTION_TOUCH then
+		if druid_helper.is_mobile() or druid_helper.is_web_mobile() or IS_COARSE_WEB then
+			return
+		end
+		if self._prefer_multi or self._skip_touch_until_press then
+			if action.pressed and not self.is_touch then
+				self._prefer_multi = false
+				self._skip_touch_until_press = false
+			else
+				return
+			end
+		end
+	end
+	if action.touch then
+		local touch = action.touch
+		for i = 1, #touch do
+			if touch[i].id == touch_id then
+				return touch[i]
+			end
+		end
+		return touch[1]
+	else
+		return action
+	end
+end
 
 local M = {}
 local V3 = vmath.vector3

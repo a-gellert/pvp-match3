@@ -40,6 +40,7 @@ app_manifest = /main/game.appmanifest
 [druid]
 input_key_back = key_back
 input_touch = touch
+input_multitouch = touch_multi
 no_auto_input = 1
 
 [project]

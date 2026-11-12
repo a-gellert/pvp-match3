@@ -22,6 +22,7 @@ local sound_on = true
 local music_on = true
 local ad_muted = false
 local music_started = false
+local music_mode = "hub"
 local deferred_started = false
 local last_played = {}
 local clock = 0
@@ -73,25 +74,44 @@ function M.load_deferred(base_url)
 		if(!AC)return;
 		var ctx=new AC();
 		var master=ctx.createGain(), sfxG=ctx.createGain(), musG=ctx.createGain();
+		var hubG=ctx.createGain(), batG=ctx.createGain();
+		hubG.gain.value=1; batG.gain.value=0;
+		hubG.connect(musG); batG.connect(musG);
 		sfxG.connect(master); musG.connect(master); master.connect(ctx.destination);
-		var bufs={}, musStarted=false, musWant=]] .. (music_on and "true" or "false") .. [[;
+		var bufs={}, hubStarted=false, batStarted=false;
+		var musWant=]] .. (music_on and "true" or "false") .. [[, wantMode=']] .. music_mode .. [[';
 		var unlock=function(){if(ctx.state==='suspended')ctx.resume().catch(function(){});};
 		['pointerdown','touchstart','keydown'].forEach(function(e){window.addEventListener(e,unlock,{passive:true});});
-		var startMus=function(){
-			if(musStarted||!musWant||!bufs.music)return;
-			musStarted=true;
-			var src=ctx.createBufferSource();
-			src.buffer=bufs.music; src.loop=true; src.connect(musG); src.start(0);
+		var syncMus=function(){
+			if(!musWant)return;
+			var useBat=(wantMode==='battle' && !!bufs.music_battle);
+			if(!useBat && bufs.music && !hubStarted){
+				hubStarted=true;
+				var s1=ctx.createBufferSource();
+				s1.buffer=bufs.music; s1.loop=true; s1.connect(hubG); s1.start(0);
+			}
+			if(useBat && bufs.music_battle && !batStarted){
+				batStarted=true;
+				var s2=ctx.createBufferSource();
+				s2.buffer=bufs.music_battle; s2.loop=true; s2.connect(batG); s2.start(0);
+			}
+			var t=ctx.currentTime;
+			try{
+				hubG.gain.cancelScheduledValues(t); hubG.gain.setValueAtTime(hubG.gain.value,t);
+				hubG.gain.linearRampToValueAtTime(useBat?0:1, t+0.6);
+				batG.gain.cancelScheduledValues(t); batG.gain.setValueAtTime(batG.gain.value,t);
+				batG.gain.linearRampToValueAtTime(useBat?1:0, t+0.6);
+			}catch(e){hubG.gain.value=useBat?0:1; batG.gain.value=useBat?1:0;}
 		};
 		var loadOne=function(name){
 			return fetch(base+'lazy/sfx/'+name+'.wav').then(function(r){return r.ok?r.arrayBuffer():null;}).then(function(ab){
 				return ab?ctx.decodeAudioData(ab):null;
-			}).then(function(b){if(b){bufs[name]=b;if(name==='music')startMus();}}).catch(function(){});
+			}).then(function(b){if(b){bufs[name]=b;if(name==='music'||name==='music_battle')syncMus();}}).catch(function(){});
 		};
 		window._gvAudio={
 			gains:function(m,s,mu){
 				master.gain.value=m; sfxG.gain.value=s; musG.gain.value=mu;
-				musWant=mu>0; if(musWant)startMus();
+				musWant=mu>0; if(musWant)syncMus();
 			},
 			play:function(name,g,sp){
 				var b=bufs[name]; if(!b)return false;
@@ -101,10 +121,11 @@ function M.load_deferred(base_url)
 				src.connect(gn); gn.connect(sfxG); src.start(0);
 				return true;
 			},
-			startMusic:function(){musWant=true;unlock();startMus();}
+			startMusic:function(){musWant=true;unlock();syncMus();},
+			setMode:function(m){wantMode=m||'hub';syncMus();}
 		};
 		window._gvAudio.gains(]] .. (ad_muted and "0" or "1") .. [[,]] .. (sound_on and "1" or "0") .. [[,]] .. (music_on and tostring(MUSIC_GAIN) or "0") .. [[);
-		['music','chest','levelup','quest','upgrade','flip','turn','notify'].reduce(function(p,n){
+		['music','music_battle','chest','levelup','quest','upgrade','flip','turn','notify'].reduce(function(p,n){
 			return p.then(function(){return loadOne(n);});
 		}, Promise.resolve());
 	})(']] .. b .. [[');
@@ -113,10 +134,17 @@ function M.load_deferred(base_url)
 end
 
 function M.start_music()
-	if music_started then return end
+	if music_started or not music_on then return end
 	music_started = true
 	if html5 then
 		pcall(html5.run, "window._gvAudio && window._gvAudio.startMusic()")
+	end
+end
+
+function M.set_music(mode)
+	music_mode = (mode == "battle") and "battle" or "hub"
+	if html5 then
+		pcall(html5.run, "window._gvAudio && window._gvAudio.setMode('" .. music_mode .. "')")
 	end
 end
 
