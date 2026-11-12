@@ -23,6 +23,7 @@ local config = require "main.modules.config"
 local poki = require "main.modules.poki"
 local audio = require "main.modules.audio"
 local i18n = require "main.modules.i18n"
+local loader = require "main.modules.loader"
 
 local TOUCH = hash("touch")
 
@@ -41,6 +42,8 @@ function app.rebuild(with_fade)
 	ui.close_layer("screen")
 	if app.screen_layer then gui.delete_node(app.screen_layer) end
 	if app.popup_layer then gui.delete_node(app.popup_layer) end
+	-- Every lazy texture watcher pointed at the nodes we just deleted; live nodes re-register below.
+	loader.reset_watchers()
 	app.popup_root = nil
 	app.screen_layer = ui.pane(nil, 0, 0)
 	app.popup_layer = ui.pane(nil, 0, 0)
@@ -429,7 +432,6 @@ local function debug_setup(ds)
 end
 
 function init(self)
-	local loader = require "main.modules.loader"
 	msg.post(".", "acquire_input_focus")
 	math.randomseed(os.time())
 	ui.init(self)

@@ -25,6 +25,8 @@ local PRIORITY = {
 local MAX_INFLIGHT = 2
 local state = {}
 local watchers = {}
+-- node -> sprite id: guards against a late texture overwriting a node that was re-applied since.
+local watched_by = {}
 local queue = {}
 local queued = {}
 local inflight = 0
@@ -56,7 +58,13 @@ end
 
 local function mark_unavailable(id)
 	state[id] = "unavailable"
+	local list = watchers[id]
 	watchers[id] = nil
+	if list then
+		for _, node in ipairs(list) do
+			if watched_by[node] == id then watched_by[node] = nil end
+		end
+	end
 	log("%s -> unavailable (atlas fallback)", id)
 end
 
@@ -74,6 +82,7 @@ end
 
 function M.reset_watchers()
 	watchers = {}
+	watched_by = {}
 end
 
 local function enqueue(id, front)
@@ -106,7 +115,10 @@ local function flush_watchers(id)
 	watchers[id] = nil
 	if not list then return end
 	for _, node in ipairs(list) do
-		pcall(gui.set_texture, node, id)
+		if watched_by[node] == id then
+			watched_by[node] = nil
+			pcall(gui.set_texture, node, id)
+		end
 	end
 end
 
@@ -176,13 +188,27 @@ function M.prioritize(id)
 	if started then pump() end
 end
 
+local function unwatch(node)
+	local prev = watched_by[node]
+	if not prev then return end
+	watched_by[node] = nil
+	local list = watchers[prev]
+	if not list then return end
+	for i = #list, 1, -1 do
+		if list[i] == node then table.remove(list, i) end
+	end
+	if #list == 0 then watchers[prev] = nil end
+end
+
 function M.apply(node, id)
 	local def = manifest[id]
 	if not def then
+		unwatch(node)
 		gui.set_texture(node, "game")
 		gui.play_flipbook(node, id)
 		return
 	end
+	unwatch(node)
 	if state[id] == "ready" then
 		local ok = pcall(gui.set_texture, node, id)
 		if ok then return end
@@ -193,6 +219,7 @@ function M.apply(node, id)
 		watchers[id] = watchers[id] or {}
 		local w = watchers[id]
 		w[#w + 1] = node
+		watched_by[node] = id
 		M.prioritize(id)
 	end
 end

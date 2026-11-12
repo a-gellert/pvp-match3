@@ -11,6 +11,7 @@ local quests = require "main.modules.quests"
 local poki = require "main.modules.poki"
 local i18n = require "main.modules.i18n"
 local audio = require "main.modules.audio"
+local loader = require "main.modules.loader"
 
 local M = {}
 local V3 = vmath.vector3
@@ -491,7 +492,7 @@ B.pvp_search = function(app, root, data)
 		end)
 	end
 	ui.after(1.0, function()
-		gui.play_flipbook(face, opp.face)
+		loader.apply(face, opp.face)
 		gui.set_color(face, ui.WHITE)
 		ui.pop(face, 1.4, 1, 0.3)
 		ui.burst(p, 0, 50, 14, ui.RED, 120, 24)

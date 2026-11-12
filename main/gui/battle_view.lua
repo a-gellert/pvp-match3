@@ -9,6 +9,7 @@ local battle = require "main.modules.battle"
 local campaign = require "main.modules.campaign"
 local i18n = require "main.modules.i18n"
 local audio = require "main.modules.audio"
+local loader = require "main.modules.loader"
 local poki = require "main.modules.poki"
 
 local M = {}
@@ -319,7 +320,7 @@ local function turn_visuals(is_p)
 	gui.play_flipbook(st.turn_pill, is_p and "btn_gold" or "btn_crimson")
 	gui.set_text(st.turn_lbl, i18n.t(is_p and "YOUR_TURN" or "ENEMY_TURN"))
 	ui.fit(st.turn_lbl, st.turn_w - 64, 22)
-	gui.play_flipbook(st.turn_face, is_p and s.player.face or s.enemy.face)
+	loader.apply(st.turn_face, is_p and s.player.face or s.enemy.face)
 	for _, side in ipairs(SIDES) do
 		local fr = st.faces[side]
 		local active = playing and ((side == "player") == is_p)
