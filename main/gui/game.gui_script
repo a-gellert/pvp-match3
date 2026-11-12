@@ -167,6 +167,8 @@ function app.start_campaign(stage_id, skip_break)
 		app.session = battle.new(battle_opts({
 			mode = "campaign",
 			stage_id = stg.id,
+			arena = campaign.biome(stg.id).arena,
+			board_cfg = stg.board_cfg,
 			tutorial = stg.tutorial and not d.onboarding_done,
 			seed = os.time() + stg.id * 31,
 			enemy_name_key = stg.name_key,
@@ -198,6 +200,8 @@ function app.launch_pvp(opp)
 		app.session = battle.new(battle_opts({
 			mode = "pvp",
 			stage_id = 0,
+			arena = opp.arena,
+			board_cfg = opp.board_cfg,
 			seed = os.time() + (d.prestige or 0),
 			enemy_name = opp.name,
 			enemy_face = opp.face,
@@ -378,6 +382,7 @@ local function debug_setup(ds)
 			for s_i = 1, N do
 				local s = battle.new({
 					mode = "campaign", stage_id = n, seed = n * 1009 + s_i * 37,
+					board_cfg = stg.board_cfg,
 					player_hp = hp, player_moves = moves,
 					heal_power = math.floor(hp * config.HEAL_RATIO + 0.5),
 					shield_power = math.floor(hp * config.SHIELD_RATIO + 0.5),
@@ -412,6 +417,7 @@ local function debug_setup(ds)
 end
 
 function init(self)
+	local loader = require "main.modules.loader"
 	msg.post(".", "acquire_input_focus")
 	math.randomseed(os.time())
 	ui.init(self)
@@ -425,6 +431,10 @@ function init(self)
 	app.dw = sys.get_config_int("display.width", 540)
 	app.dh = sys.get_config_int("display.height", 960)
 	update_size()
+	loader.start()
+	timer.delay(0.45, false, function()
+		audio.load_deferred(loader.base_url())
+	end)
 
 	local ds = sys.get_config_string("pvp.debug_screen", "")
 	if debug_setup(ds) then return end

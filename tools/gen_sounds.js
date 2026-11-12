@@ -33,11 +33,20 @@ function wavBuffer(samples, rate) {
   return buf;
 }
 
+const LAZY_SFX_DIR = 'bundle_res/common/lazy/sfx';
+fs.mkdirSync(LAZY_SFX_DIR, { recursive: true });
+const LAZY_SFX = new Set(['levelup', 'chest', 'quest', 'upgrade', 'flip', 'turn', 'notify']);
+
 function writeWav(name, dur, sampleFn) {
   const n = Math.floor(SR * dur);
   const s = new Float32Array(n);
   for (let i = 0; i < n; i++) s[i] = sampleFn(i / SR, dur);
-  fs.writeFileSync(`${OUT}/${name}.wav`, wavBuffer(s, SR));
+  const buf = wavBuffer(s, SR);
+  if (LAZY_SFX.has(name)) {
+    fs.writeFileSync(`${LAZY_SFX_DIR}/${name}.wav`, buf);
+  } else {
+    fs.writeFileSync(`${OUT}/${name}.wav`, buf);
+  }
 }
 
 const env = (t, d) => Math.exp(-t / (d * 0.35)) * Math.min(1, t * 80);
@@ -214,10 +223,12 @@ const loop = buf.slice(N, N * 2);
 let peak = 0;
 for (const v of loop) peak = Math.max(peak, Math.abs(v));
 for (let i = 0; i < loop.length; i++) loop[i] = loop[i] / peak * 0.8;
-fs.writeFileSync(`${OUT}/music.wav`, wavBuffer(loop, MSR));
+const musicBuf = wavBuffer(loop, MSR);
+fs.writeFileSync(`${LAZY_SFX_DIR}/music.wav`, musicBuf);
 
 const comp = (name, group, looping, gain) =>
   `embedded_components {\n  id: "${name}"\n  type: "sound"\n  data: "sound: \\"/main/assets/sounds/${name}.wav\\"\\n"\n  "looping: ${looping}\\n"\n  "group: \\"${group}\\"\\n"\n  "gain: ${gain}\\n"\n}\n`;
-const go = SOUNDS.map(([name]) => comp(name, 'sfx', 0, '1.0')).join('') + comp('music', 'music', 1, '0.55');
+const coreSounds = SOUNDS.filter(([name]) => !LAZY_SFX.has(name));
+const go = coreSounds.map(([name]) => comp(name, 'sfx', 0, '1.0')).join('');
 fs.writeFileSync('main/sounds.go', go);
-console.log(`Generated ${SOUNDS.length} SFX + music loop (${(LOOP).toFixed(1)}s, ${(loop.length * 2 / 1024).toFixed(0)} KB) + main/sounds.go`);
+console.log(`Generated ${coreSounds.length} core SFX -> sounds.go, ${LAZY_SFX.size} lazy SFX + music (${(loop.length * 2 / 1024).toFixed(0)} KB) -> ${LAZY_SFX_DIR}`);

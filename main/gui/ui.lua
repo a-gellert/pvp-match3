@@ -3,6 +3,7 @@
 local druid = require "druid.druid"
 local druid_style = require "main.gui.druid_style"
 local audio = require "main.modules.audio"
+local loader = require "main.modules.loader"
 local sizes = require "main.gui.sprite_sizes"
 
 local M = {}
@@ -114,8 +115,7 @@ end
 function M.box(parent, sprite, x, y, w, h, color)
 	local n = gui.new_box_node(V3(x, y, 0), V3(w, h, 0))
 	if sprite then
-		gui.set_texture(n, M.TEX)
-		gui.play_flipbook(n, sprite)
+		loader.apply(n, sprite)
 	end
 	gui.set_color(n, color or M.WHITE)
 	gui.set_inherit_alpha(n, true)

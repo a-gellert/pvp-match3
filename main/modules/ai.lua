@@ -15,8 +15,20 @@ local function score_swap(b, m, enemy, difficulty)
 
 	local score = 0
 	local hp_ratio = enemy.hp / math.max(1, enemy.max_hp)
+	local dirs = { { -1, 0 }, { 1, 0 }, { 0, -1 }, { 0, 1 } }
 	for _, grp in ipairs(groups) do
 		local n = #grp.cells
+		for _, p in ipairs(grp.cells) do
+			local c = sim.grid[p.r][p.c]
+			if c and c.curse then score = score + 18 end
+			if c and c.empowered then score = score + 10 end
+			for _, d in ipairs(dirs) do
+				local nr, nc = p.r + d[1], p.c + d[2]
+				local ng = sim.grid[nr] and sim.grid[nr][nc]
+				if ng and ng.ice then score = score + 6 end
+				if ng and ng.stone then score = score + 4 end
+			end
+		end
 		if grp.color == "purple" then
 			score = score + n * 16
 		elseif grp.color == "yellow" then
