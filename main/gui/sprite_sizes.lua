@@ -43,7 +43,7 @@ return {
 	squad_yellow_archers = { 101, 136 },
 	squad_yellow_crossbow = { 90, 136 },
 	squad_yellow_paladin = { 105, 136 },
-	squad_purple_cultists = { 156, 92 },
+	squad_purple_cultists = { 108, 136 },
 	squad_purple_necro = { 156, 136 },
 	squad_purple_golem = { 156, 126 },
 	icon_gold = { 64, 64 },

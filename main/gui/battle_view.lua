@@ -299,7 +299,8 @@ local function rise_unit(side, col)
 	gui.set_position(U.vis, V3(0, 0, 0))
 	gui.set_color(U.vis, ui.WHITE)
 	gui.animate(U.vis, "position.y", 4, gui.EASING_INOUTSINE, 1.15, 0, nil, gui.PLAYBACK_LOOP_PINGPONG)
-	ui.pop(U.vis, 0.3, 1, 0.4)
+	gui.set_scale(U.vis, V3(U.flip * 0.3, 0.3, 1))
+	gui.animate(U.vis, "scale", V3(U.flip, 1, 1), gui.EASING_OUTBACK, 0.4)
 end
 
 -- ---------------------------------------------------------------- HUD (rebuilt on every change)

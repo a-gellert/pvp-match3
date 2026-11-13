@@ -969,20 +969,6 @@ const LAZY_SPRITES = {
   proj_lightning: 'proj_spell',
   proj_venom: 'proj_arrow',
   fx_reap: 'fx_slash',
-  squad_red_wolves: 'squad_red_militia',
-  squad_red_berserk: 'squad_red_militia',
-  squad_red_drake: 'squad_red_militia',
-  squad_red_templar: 'squad_red_militia',
-  squad_yellow_crossbow: 'squad_yellow_archers',
-  squad_yellow_assassins: 'squad_yellow_archers',
-  squad_yellow_paladin: 'squad_yellow_archers',
-  squad_yellow_thunder: 'squad_yellow_archers',
-  squad_yellow_valkyrie: 'squad_yellow_archers',
-  squad_purple_necro: 'squad_purple_cultists',
-  squad_purple_banshee: 'squad_purple_cultists',
-  squad_purple_golem: 'squad_purple_cultists',
-  squad_purple_reaper: 'squad_purple_cultists',
-  squad_purple_witch: 'squad_purple_cultists',
 };
 
 const CORE = [];

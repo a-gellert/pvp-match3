@@ -387,6 +387,15 @@ if ($amber2) { Slice-RowAuto $amber2 @("squad_yellow_falconer","squad_yellow_ass
 $arcane = Latest "arcane_squads_*.jpg"
 if ($arcane) { Slice-RowAuto $arcane @("squad_purple_cultists","squad_purple_necro","squad_purple_golem") 156 136 }
 
+$cultists = Latest "shadow_cultists_squad_*.jpg"
+if ($cultists) {
+    $bmp = [SpriteProcessor]::LoadCrop($cultists, 0.0, 0.0, 1.0, 1.0)
+    [SpriteProcessor]::KeyWhite($bmp, $true, $true)
+    [SpriteProcessor]::SaveTight($bmp, "$ArtDir/squad_purple_cultists.png", 156, 136, $false)
+    $bmp.Dispose()
+    Write-Host "Saved squad_purple_cultists.png (dedicated 2x2 squad)"
+}
+
 $arcane2 = Latest "arcane_purple_squads_*.jpg"
 if ($arcane2) { Slice-RowAuto $arcane2 @("squad_purple_imps","squad_purple_banshee","squad_purple_reaper") 156 136 }
 
