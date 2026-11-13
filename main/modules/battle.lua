@@ -543,20 +543,31 @@ local ATK_HINT = { red = true, yellow = true, purple = true }
 function M.suggest_move(s)
 	local moves = board.valid_moves(s.board.grid)
 	local best, best_n = moves[1], -1
+	local best_cells = nil
 	local g = s.board.grid
 	for _, m in ipairs(moves) do
 		local a, b = g[m.r1][m.c1], g[m.r2][m.c2]
 		local n = 0
+		local m_cells = {}
 		if a.special == "prism" or b.special == "prism" then
 			n = 12
 		else
 			g[m.r1][m.c1], g[m.r2][m.c2] = b, a
 			for _, grp in ipairs(board.find_matches(g)) do
 				n = n + #grp.cells + (grp.spawn and 3 or 0) + (ATK_HINT[grp.color] and 0.1 or 0)
+				for _, c in ipairs(grp.cells) do
+					m_cells[#m_cells + 1] = { r = c.r, c = c.c }
+				end
 			end
 			g[m.r1][m.c1], g[m.r2][m.c2] = a, b
 		end
-		if n > best_n then best, best_n = m, n end
+		if n > best_n then
+			best, best_n = m, n
+			best_cells = m_cells
+		end
+	end
+	if best then
+		best.match_cells = best_cells
 	end
 	return best
 end

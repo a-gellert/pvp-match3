@@ -167,6 +167,33 @@ local function show_target(col)
 	ui.pulse(gl, 1.1, 0.35)
 end
 
+local function clear_swipe_prompt()
+	if st.swipe_prompt then
+		gui.delete_node(st.swipe_prompt)
+		st.swipe_prompt = nil
+	end
+end
+
+local function show_swipe_prompt(r, c)
+	clear_swipe_prompt()
+	if not st.fx_layer then return end
+	local px, py = st.board_cx, st.board_cy
+	if r and c then
+		px, py = cell_pos(r, c)
+		py = py + st.cell * 0.72
+	end
+	local node = ui.pane(st.fx_layer, px, py)
+	st.swipe_prompt = node
+	local pw = 240
+	local pill = ui.slice(node, "btn_gold", 0, 0, pw, 44, ui.WHITE, 14)
+	ui.label(pill, i18n.t("TUT_SWIPE_ALERT"), 0, 2, 17, ui.INK, pw - 20, { plain = true })
+	ui.pulse(pill, 1.08, 0.38)
+	gui.animate(node, "position.y", py + 12, gui.EASING_INOUTSINE, 0.45, 0, nil, gui.PLAYBACK_LOOP_PINGPONG)
+	ui.after(3.0, function()
+		if st.swipe_prompt == node then clear_swipe_prompt() end
+	end)
+end
+
 local function clear_hint()
 	st.idle = 0
 	if st.hint_fx then
@@ -204,6 +231,26 @@ local function show_hint()
 		st.hint_fx[#st.hint_fx + 1] = gl
 		st.hint_fx[#st.hint_fx + 1] = rg
 		gui.animate(p[3].node, "scale", V3(1.18, 1.18, 1), gui.EASING_INOUTSINE, 0.42, 0, nil, gui.PLAYBACK_LOOP_PINGPONG)
+	end
+	-- Highlight the rest of the matching run (shows full 3-in-a-row pattern)
+	if m.match_cells then
+		for _, mc in ipairs(m.match_cells) do
+			if not ((mc.r == m.r1 and mc.c == m.c1) or (mc.r == m.r2 and mc.c == m.c2)) then
+				local mg = st.gems[mc.r] and st.gems[mc.r][mc.c]
+				if mg and mg.node then
+					local gx, gy = cell_pos(mc.r, mc.c)
+					local gc = ui.GEM_COLOR[mg.color] or ui.GOLD
+					local gl = ui.glow(ui.box(st.fx_layer, "glow", gx, gy, st.cell * 1.3, st.cell * 1.3, tint(gc, 0.45)))
+					gui.animate(gl, "scale", V3(1.15, 1.15, 1), gui.EASING_INOUTSINE, 0.42, 0, nil, gui.PLAYBACK_LOOP_PINGPONG)
+					local rg = ui.glow(ui.box(st.fx_layer, "ring", gx, gy, st.cell * 0.95, st.cell * 0.95, ui.GOLD))
+					gui.animate(rg, "scale", V3(1.12, 1.12, 1), gui.EASING_INOUTSINE, 0.42, 0, nil, gui.PLAYBACK_LOOP_PINGPONG)
+					st.hint_fx[#st.hint_fx + 1] = gl
+					st.hint_fx[#st.hint_fx + 1] = rg
+					gui.animate(mg.node, "scale", V3(1.12, 1.12, 1), gui.EASING_INOUTSINE, 0.42, 0, nil, gui.PLAYBACK_LOOP_PINGPONG)
+					st.hint_nodes[#st.hint_nodes + 1] = mg
+				end
+			end
+		end
 	end
 	local x1, y1 = cell_pos(m.r1, m.c1)
 	local x2, y2 = cell_pos(m.r2, m.c2)
@@ -453,7 +500,25 @@ local function show_tutorial()
 	local pill = ui.slice(st.tut_node, "btn_gold", st.arena_cx, st.top_y - 2, pw, 80, ui.WHITE, 18)
 	ui.label(pill, i18n.t(key), 0, 3, 21, ui.INK, pw - 26, { lines = 2, plain = true, outline = V4(1, 0.9, 0.6, 0) })
 	ui.pulse(pill, 1.03, 0.55)
-	if s.tutorial_step <= 2 then show_hint() end
+
+	-- Step 1 FTUE guardrail: dim board and emphasize swipe right over the board
+	if s.tutorial_step == 1 then
+		if not st.tut_dim and st.fx_layer then
+			st.tut_dim = ui.box(st.fx_layer, "square", st.board_cx, st.board_cy, st.board_size + 14, st.board_size + 14, V4(0.04, 0.06, 0.12, 0.68))
+		end
+		local by = st.board_cy + st.board_size / 2 + 32
+		local b_banner = ui.slice(st.tut_node, "btn_gold", st.board_cx, by, math.min(st.board_size, 460), 48, ui.WHITE, 16)
+		ui.label(b_banner, i18n.t("TUT_SWIPE_PROMPT"), 0, 2, 19, ui.INK, 420, { plain = true })
+		ui.pulse(b_banner, 1.06, 0.45)
+		show_hint()
+	elseif s.tutorial_step > 1 and st.tut_dim then
+		local d = st.tut_dim
+		st.tut_dim = nil
+		gui.animate(d, "color.w", 0, gui.EASING_OUTQUAD, 0.3, 0, function() gui.delete_node(d) end)
+		if s.tutorial_step <= 2 then show_hint() end
+	else
+		if s.tutorial_step <= 2 then show_hint() end
+	end
 end
 
 -- ---------------------------------------------------------------- arena
@@ -499,6 +564,7 @@ function M.build(app, parent)
 		hammer_mode = false, sel = nil, drag = nil,
 		speed = progress.data.battle_speed or 1,
 		rush_t = nil, last_trail = nil,
+		confusion_count = 0, confusion_timer = 0, swipe_prompt = nil, sel_neighbor_fx = nil, tut_dim = nil,
 		units = { player = {}, enemy = {} }, boost_pos = {}, orbs = {}, faces = {}, bars = {},
 		disp = { player = { hp = s.player.hp, shield = s.player.shield }, enemy = { hp = s.enemy.hp, shield = s.enemy.shield } },
 	}
@@ -1403,6 +1469,11 @@ end
 
 local function bounce_invalid(r1, c1, r2, c2)
 	audio.play("blocked")
+	st.confusion_count = (st.confusion_count or 0) + 2
+	if st.confusion_count >= 3 then
+		show_hint()
+		show_swipe_prompt(r1, c1)
+	end
 	local a = st.gems[r1] and st.gems[r1][c1]
 	local b = st.gems[r2] and st.gems[r2][c2]
 	if not (a and b) then return end
@@ -1417,6 +1488,10 @@ local function bounce_invalid(r1, c1, r2, c2)
 end
 
 local function set_selected(r, c)
+	if st.sel_neighbor_fx then
+		for _, n in ipairs(st.sel_neighbor_fx) do gui.delete_node(n) end
+		st.sel_neighbor_fx = nil
+	end
 	if st.sel then
 		local g = st.gems[st.sel.r] and st.gems[st.sel.r][st.sel.c]
 		if g then gui.cancel_animations(g.node, "scale"); gui.set_scale(g.node, V3(1, 1, 1)) end
@@ -1428,6 +1503,24 @@ local function set_selected(r, c)
 		gui.set_position(st.sel_ring, V3(x, y, 0))
 		local g = st.gems[r][c]
 		if g then gui.animate(g.node, "scale", V3(1.12, 1.12, 1), gui.EASING_INOUTSINE, 0.35, 0, nil, gui.PLAYBACK_LOOP_PINGPONG) end
+
+		-- Neighbor guidance: pulse gold ring on neighbors that form a legal match-3
+		local s = st.session
+		if s and s.board then
+			local dirs = { { -1, 0 }, { 1, 0 }, { 0, -1 }, { 0, 1 } }
+			for _, d in ipairs(dirs) do
+				local nr, nc = r + d[1], c + d[2]
+				if nr >= 1 and nr <= N and nc >= 1 and nc <= N then
+					if board.can_swap(s.board, r, c, nr, nc) then
+						st.sel_neighbor_fx = st.sel_neighbor_fx or {}
+						local nx, ny = cell_pos(nr, nc)
+						local gl = ui.glow(ui.box(st.fx_layer, "ring", nx, ny, st.cell * 0.95, st.cell * 0.95, ui.GOLD))
+						gui.animate(gl, "scale", V3(1.15, 1.15, 1), gui.EASING_INOUTSINE, 0.35, 0, nil, gui.PLAYBACK_LOOP_PINGPONG)
+						st.sel_neighbor_fx[#st.sel_neighbor_fx + 1] = gl
+					end
+				end
+			end
+		end
 	else
 		clear_target()
 	end
@@ -1438,6 +1531,14 @@ local function try_swap(r1, c1, r2, c2)
 	clear_target()
 	if r2 < 1 or r2 > N or c2 < 1 or c2 > N then return end
 	if battle.player_swap(st.session, r1, c1, r2, c2) then
+		st.confusion_count = 0
+		clear_swipe_prompt()
+		clear_hint()
+		if st.tut_dim then
+			local d = st.tut_dim
+			st.tut_dim = nil
+			gui.animate(d, "color.w", 0, gui.EASING_OUTQUAD, 0.3, 0, function() gui.delete_node(d) end)
+		end
 		M.process()
 	else
 		bounce_invalid(r1, c1, r2, c2)
@@ -1452,6 +1553,7 @@ end
 -- ---------------------------------------------------------------- tactile juice & fidgeting
 local function click_sparks(x, y, color)
 	if not st.fx_layer then return end
+	if (st.confusion_count or 0) >= 4 then return end -- suppress rewards for frantic spam tapping
 	color = color or ui.GOLD
 	ui.ring(st.fx_layer, x, y, 32, color, dur(0.18))
 	for _ = 1, 3 do
@@ -1533,7 +1635,12 @@ function M.on_raw_input(action_id, action)
 end
 
 function M.touch_start(x, y)
-	clear_hint()
+	local s = st.session
+	local is_tut1 = s and s.tutorial and s.tutorial_step == 1
+	local is_confused = (st.confusion_count or 0) >= 3
+	if not is_tut1 and not is_confused then
+		clear_hint()
+	end
 	if not can_act() then return end
 	local r, c = screen_to_cell(x, y)
 	if not r then return end
@@ -1548,8 +1655,29 @@ function M.touch_start(x, y)
 	if not logic_g or logic_g.hole or logic_g.stone or logic_g.ice then
 		audio.play("blocked")
 		if g then ui.shake(g.node, 7) end
+		st.confusion_count = (st.confusion_count or 0) + 1
+		if st.confusion_count >= 3 then
+			show_hint()
+			show_swipe_prompt(r, c)
+		end
 		return
 	end
+
+	-- FTUE Step 1 Guardrail: only allow touching the tutorial move cells
+	if is_tut1 then
+		local m = battle.suggest_move(s)
+		if m then
+			local is_m = (r == m.r1 and c == m.c1) or (r == m.r2 and c == m.c2)
+			if not is_m then
+				audio.play("blocked")
+				if g then ui.shake(g.node, 6) end
+				if st.tut_dim then ui.shake(st.tut_dim, 4) end
+				show_hint()
+				return
+			end
+		end
+	end
+
 	st.drag = { r = r, c = c, done = false }
 	audio.play("tap")
 	if g then show_target(g.color) end
@@ -1561,7 +1689,7 @@ end
 function M.touch_drag(total_x, total_y)
 	local d = st.drag
 	if not d or d.done or not can_act() then return end
-	local th = st.cell * 0.33
+	local th = st.cell * 0.25
 	if math.abs(total_x) < th and math.abs(total_y) < th then return end
 	d.done = true
 	local nr, nc = d.r, d.c
@@ -1584,13 +1712,20 @@ function M.touch_end()
 	local r, c = d.r, d.c
 	if not st.sel then
 		set_selected(r, c)
+		st.confusion_count = (st.confusion_count or 0) + 1
 	elseif st.sel.r == r and st.sel.c == c then
 		set_selected(nil)
+		st.confusion_count = (st.confusion_count or 0) + 1
 	elseif math.abs(st.sel.r - r) + math.abs(st.sel.c - c) == 1 then
 		try_swap(st.sel.r, st.sel.c, r, c)
 	else
 		set_selected(r, c)
 		if g then show_target(g.color) end
+		st.confusion_count = (st.confusion_count or 0) + 1
+	end
+	if (st.confusion_count or 0) >= 3 then
+		show_hint()
+		show_swipe_prompt(r, c)
 	end
 	if not st.sel then clear_target() end
 end
@@ -1599,6 +1734,16 @@ end
 function M.update(dt)
 	local s = st.session
 	if not (s and st.gems) then return end
+
+	-- Confusion timer decay
+	if st.confusion_count and st.confusion_count > 0 then
+		st.confusion_timer = (st.confusion_timer or 0) + dt
+		if st.confusion_timer > 3.0 then
+			st.confusion_count = 0
+			st.confusion_timer = 0
+			clear_swipe_prompt()
+		end
+	end
 
 	-- Rush timer decay (tap acceleration)
 	if st.rush_t and st.rush_t > 0 then

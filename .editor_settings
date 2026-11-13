@@ -19,7 +19,7 @@
       :variant "release"
       :with_symbols false
     }
-    :last-bundle-command :project.bundle-android
+    :last-bundle-command :bundle-poki
     :output-directory "D:\\DProjects\\pvp-match3\\pvp"
     :poki {
       :architectures #{
@@ -39,14 +39,41 @@
   }
   :scene {
     :resource-settings {
+      "/promo/gem_vanguard_portrait_800x1200.png" {
+        :camera {
+          :focus-point [
+            400.0
+            600.0
+            0.0
+          ]
+          :fov-x 2760.7441860465115
+          :fov-y 1320.0
+          :position [
+            400.0
+            600.0
+            5000.0
+          ]
+          :projection :orthographic
+          :rotation [
+            0.0
+            0.0
+            0.0
+            1.0
+          ]
+        }
+      }
     }
   }
   :workflow {
     :open-tabs [
       [
         [
-          "/promo/gem_vanguard_portrait_800x1200.png"
-          :scene
+          "/main/modules/config.lua"
+          :code
+        ]
+        [
+          "/game.project"
+          :form
         ]
       ]
     ]
@@ -56,8 +83,16 @@
         :html
       ]
       [
+        "/main/modules/config.lua"
+        :code
+      ]
+      [
         "/promo/gem_vanguard_portrait_800x1200.png"
         :scene
+      ]
+      [
+        "/game.project"
+        :form
       ]
     ]
   }
