@@ -34,6 +34,7 @@ local function default_data()
 		lang = "",
 		sound = true,
 		music = true,
+		battle_speed = 1,
 		slots = {
 			red = "red_militia",
 			yellow = "yellow_archers",

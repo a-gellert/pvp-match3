@@ -11,6 +11,7 @@ local i18n = require "main.modules.i18n"
 local audio = require "main.modules.audio"
 local loader = require "main.modules.loader"
 local poki = require "main.modules.poki"
+local progress = require "main.modules.progress"
 
 local M = {}
 local V3 = vmath.vector3
@@ -21,12 +22,25 @@ local LANE_OF = { red = true, yellow = true, purple = true }
 local SIDES = { "player", "enemy" }
 
 local SPEC_SPRITE = { line_h = "spec_line_h", line_v = "spec_line_v", bomb = "spec_bomb" }
-local STEP_DUR = 0.34
+local STEP_DUR = 0.30
+local AI_DELAY = 0.16
 local HINT_DELAY = 2.5
 local DMG_COLOR = V4(1, 0.93, 0.86, 1)
 local DEAD_COLOR = V4(0.36, 0.38, 0.46, 0.6)
 
 local st = {}
+
+local function speed_mul()
+	local base = st.speed or 1
+	if st.rush_t and st.rush_t > 0 then
+		base = base * 2.0
+	end
+	return base
+end
+
+local function dur(d)
+	return d / speed_mul()
+end
 
 -- ---------------------------------------------------------------- helpers
 local function cell_pos(r, c)
@@ -465,12 +479,25 @@ local function make_team_bar(side, bx, by, bw)
 	return { hp = hp, sh = sh, sh_icon = icon, x = bx, y = by, w = bw }
 end
 
+function M.toggle_speed()
+	st.speed = (st.speed == 1) and 2 or 1
+	progress.data.battle_speed = st.speed
+	progress.save()
+	audio.play("tap", 0.8, st.speed == 2 and 1.35 or 1.0)
+	if st.speed_btn and st.speed_btn.text_node then
+		gui.set_text(st.speed_btn.text_node, "x" .. st.speed)
+		gui.set_color(st.speed_btn.text_node, st.speed == 2 and ui.GOLD or ui.BONE)
+	end
+end
+
 -- ---------------------------------------------------------------- build
 function M.build(app, parent)
 	local s = app.session
 	st = {
 		app = app, session = s, root = ui.pane(parent, 0, 0), busy = false, ai_timer = 0, idle = 0,
 		hammer_mode = false, sel = nil, drag = nil,
+		speed = progress.data.battle_speed or 1,
+		rush_t = nil, last_trail = nil,
 		units = { player = {}, enemy = {} }, boost_pos = {}, orbs = {}, faces = {}, bars = {},
 		disp = { player = { hp = s.player.hp, shield = s.player.shield }, enemy = { hp = s.enemy.hp, shield = s.enemy.shield } },
 	}
@@ -524,11 +551,15 @@ function M.build(app, parent)
 	st.arena_cy = st.arena_y0 + st.arena_h / 2
 	local acx, acy, aw, ah = st.arena_cx, st.arena_cy, st.arena_w, st.arena_h
 
-	-- ---- top bar: pause | stage + enemy name | round
+	-- ---- top bar: pause | speed toggle | stage + enemy name | round
 	ui.btn(st.root, "btn_round", cx0 + 38, st.top_y, 62, 62, "", 20, function() app.pause() end, { icon = "icon_pause", icon_size = 30 })
+	local _, speed_b = ui.btn(st.root, "btn_round", cx0 + 108, st.top_y, 62, 62, "x" .. st.speed, 22, function()
+		M.toggle_speed()
+	end, { text_color = st.speed == 2 and ui.GOLD or ui.BONE })
+	st.speed_btn = speed_b
 	local stage_str = s.mode == "pvp" and i18n.t("PVP")
 		or (i18n.t("STAGE_FMT", { n = s.stage_id }) .. (campaign.get_stage(s.stage_id).boss and ("  " .. i18n.t("BOSS")) or ""))
-	local title_w = (cx1 - cx0) - 300
+	local title_w = (cx1 - cx0) - 360
 	ui.label(st.root, stage_str, acx, st.top_y + 12, 26, ui.BONE, title_w)
 	local e_name = s.enemy.name_key and i18n.t(s.enemy.name_key) or s.enemy.name
 	ui.label(st.root, i18n.t("VS_FMT", { name = e_name }), acx, st.top_y - 16, 18, ui.DIM, title_w)
@@ -676,20 +707,21 @@ local function turn_banner(is_p, sub)
 	local col = is_p and V4(0.93, 0.68, 0.18, 0.95) or V4(0.72, 0.1, 0.18, 0.95)
 	local band = ui.box(root, "band", 0, 0, bw, 150, col)
 	gui.set_scale(band, V3(1, 0.05, 1))
-	gui.animate(band, "scale", V3(1, 1, 1), gui.EASING_OUTBACK, 0.2)
+	gui.animate(band, "scale", V3(1, 1, 1), gui.EASING_OUTBACK, dur(0.16))
 	local dark = ui.box(root, "band", 0, 0, bw * 0.92, 112, V4(0.05, 0.05, 0.1, 0.55))
 	gui.set_scale(dark, V3(1, 0.05, 1))
-	gui.animate(dark, "scale", V3(1, 1, 1), gui.EASING_OUTBACK, 0.2)
+	gui.animate(dark, "scale", V3(1, 1, 1), gui.EASING_OUTBACK, dur(0.16))
 	local grp = ui.pane(root, (is_p and -1 or 1) * bw * 0.7, 0)
 	local face = ui.box(grp, is_p and s.player.face or s.enemy.face, -st.board_size * 0.3, 0, 96, 96)
 	ui.text(grp, i18n.t(is_p and "YOUR_TURN" or "ENEMY_TURN"), 50, sub and 12 or 2, 58, is_p and ui.GOLD or ui.WHITE)
 	if sub then ui.text(grp, sub, 50, -32, 22, ui.BONE) end
-	gui.animate(grp, "position.x", 0, gui.EASING_OUTBACK, 0.3)
-	ui.pop(face, 0.4, 1, 0.35, 0.1)
-	ui.after(0.85, function()
-		gui.animate(grp, "position.x", (is_p and 1 or -1) * bw * 0.8, gui.EASING_INQUAD, 0.2)
-		gui.animate(band, "scale", V3(1, 0.02, 1), gui.EASING_INQUAD, 0.2)
-		gui.animate(dark, "scale", V3(1, 0.02, 1), gui.EASING_INQUAD, 0.2, 0, function() gui.delete_node(root) end)
+	gui.animate(grp, "position.x", 0, gui.EASING_OUTBACK, dur(0.22))
+	ui.pop(face, 0.4, 1, dur(0.28), dur(0.06))
+	local hold = is_p and dur(0.38) or dur(0.20)
+	ui.after(hold, function()
+		gui.animate(grp, "position.x", (is_p and 1 or -1) * bw * 0.8, gui.EASING_INQUAD, dur(0.16))
+		gui.animate(band, "scale", V3(1, 0.02, 1), gui.EASING_INQUAD, dur(0.16))
+		gui.animate(dark, "scale", V3(1, 0.02, 1), gui.EASING_INQUAD, dur(0.16), 0, function() gui.delete_node(root) end)
 	end)
 	audio.play(is_p and "turn_you" or "turn_enemy", 0.9)
 	audio.play("whoosh", 0.45, is_p and 1.2 or 0.85)
@@ -776,25 +808,25 @@ local function strike_melee(ev, A, T, foe, big, col)
 	gui.cancel_animations(A.holder, "scale")
 	gui.set_position(A.holder, V3(hx, hy, 0))
 	gui.set_scale(A.holder, V3(1, 1, 1))
-	gui.animate(A.holder, "position", V3(tx, ty, 0), gui.EASING_INCUBIC, 0.11)
-	gui.animate(A.holder, "scale", V3(1.22, 1.22, 1), gui.EASING_OUTQUAD, 0.11)
-	ui.after(0.03, function() ui.puff(st.fx_layer, hx + (tx - hx) * 0.35, hy + (ty - hy) * 0.35, nil, 34) end)
-	ui.after(0.11, function()
+	gui.animate(A.holder, "position", V3(tx, ty, 0), gui.EASING_INCUBIC, dur(0.11))
+	gui.animate(A.holder, "scale", V3(1.22, 1.22, 1), gui.EASING_OUTQUAD, dur(0.11))
+	ui.after(dur(0.03), function() ui.puff(st.fx_layer, hx + (tx - hx) * 0.35, hy + (ty - hy) * 0.35, nil, 34) end)
+	ui.after(dur(0.11), function()
 		audio.play("slash", 0.95, ev.crit and 1.15 or 1.0)
 		local sp = ev.fx or "fx_slash"
 		local sz = st.us * 1.3
 		local sl = ui.glow(ui.box(st.fx_layer, sp, T.home.x - dir * 8, T.home.y, sz, sz, sp == "fx_slash" and col or ui.WHITE))
 		gui.set_scale(sl, V3(dir * 0.65, 0.65, 1))
 		gui.set_euler(sl, V3(0, 0, dir * -22))
-		gui.animate(sl, "scale", V3(dir * 1.4, 1.4, 1), gui.EASING_OUTQUAD, 0.16)
-		gui.animate(sl, "euler.z", dir * 32, gui.EASING_OUTQUAD, 0.16)
-		gui.animate(sl, "color.w", 0, gui.EASING_INQUAD, 0.18, 0.04, function() gui.delete_node(sl) end)
+		gui.animate(sl, "scale", V3(dir * 1.4, 1.4, 1), gui.EASING_OUTQUAD, dur(0.16))
+		gui.animate(sl, "euler.z", dir * 32, gui.EASING_OUTQUAD, dur(0.16))
+		gui.animate(sl, "color.w", 0, gui.EASING_INQUAD, dur(0.18), dur(0.04), function() gui.delete_node(sl) end)
 		hit_squad(foe, ev.color, ev, big, col)
 		ui.shake_xy(st.shake, big and 12 or 6)
 	end)
-	ui.after(0.18, function()
-		gui.animate(A.holder, "position", V3(hx, hy, 0), gui.EASING_OUTQUAD, 0.15)
-		gui.animate(A.holder, "scale", V3(1, 1, 1), gui.EASING_OUTQUAD, 0.15)
+	ui.after(dur(0.18), function()
+		gui.animate(A.holder, "position", V3(hx, hy, 0), gui.EASING_OUTQUAD, dur(0.15))
+		gui.animate(A.holder, "scale", V3(1, 1, 1), gui.EASING_OUTQUAD, dur(0.15))
 	end)
 end
 
@@ -810,21 +842,21 @@ local function strike_missile(ev, A, T, foe, big, col, magic)
 	gui.set_scale(A.holder, V3(1, 1, 1))
 	local lx = hx + dir * (magic and 20 or 26)
 	local ly = hy + (magic and 12 or 4)
-	gui.animate(A.holder, "position", V3(lx, ly, 0), gui.EASING_OUTQUAD, 0.08, 0, function()
-		gui.animate(A.holder, "position", V3(hx, hy, 0), gui.EASING_OUTBACK, 0.15)
+	gui.animate(A.holder, "position", V3(lx, ly, 0), gui.EASING_OUTQUAD, dur(0.08), 0, function()
+		gui.animate(A.holder, "position", V3(hx, hy, 0), gui.EASING_OUTBACK, dur(0.15))
 	end)
-	gui.animate(A.holder, "scale", V3(1.12, 1.12, 1), gui.EASING_OUTQUAD, 0.08, 0, function()
-		gui.animate(A.holder, "scale", V3(1, 1, 1), gui.EASING_OUTQUAD, 0.15)
+	gui.animate(A.holder, "scale", V3(1.12, 1.12, 1), gui.EASING_OUTQUAD, dur(0.08), 0, function()
+		gui.animate(A.holder, "scale", V3(1, 1, 1), gui.EASING_OUTQUAD, dur(0.15))
 	end)
 	if magic then
-		ui.ring(st.fx_layer, hx, hy + 10, st.us * 1.25, col, 0.26)
+		ui.ring(st.fx_layer, hx, hy + 10, st.us * 1.25, col, dur(0.26))
 	else
 		ui.puff(st.fx_layer, hx - dir * 10, hy - 8, nil, 24)
 	end
 	local per = magic and math.max(1, math.min(3, ev.units or 2)) or math.max(2, math.min(4, ev.units or 3))
-	local fly = magic and 0.20 or 0.16
+	local fly = dur(magic and 0.20 or 0.16)
 	for k = 1, per do
-		ui.after((k - 1) * (magic and 0.055 or 0.035), function()
+		ui.after((k - 1) * dur(magic and 0.055 or 0.035), function()
 			local sy = ly + (k - (per + 1) / 2) * 14
 			local sx = lx + dir * st.us * 0.28
 			local ey = ty + (k - (per + 1) / 2) * 10
@@ -833,14 +865,14 @@ local function strike_missile(ev, A, T, foe, big, col, magic)
 			local proj = ui.glow(ui.box(st.fx_layer, ev.fx or (magic and "proj_spell" or "proj_arrow"), sx, sy, w, h, ui.WHITE))
 			gui.set_euler(proj, V3(0, 0, ang))
 			gui.animate(proj, "position", V3(tx, ey, 0), magic and gui.EASING_INOUTSINE or gui.EASING_LINEAR, fly)
-			ui.after(fly * 0.45, function() ui.spark_dot(st.fx_layer, sx + (tx - sx) * 0.45, sy + (ey - sy) * 0.45, col, magic and 24 or 16, 0.2) end)
+			ui.after(fly * 0.45, function() ui.spark_dot(st.fx_layer, sx + (tx - sx) * 0.45, sy + (ey - sy) * 0.45, col, magic and 24 or 16, dur(0.2)) end)
 			ui.after(fly, function()
 				gui.delete_node(proj)
 				if k == 1 then
 					hit_squad(foe, ev.color, ev, big, col)
 					ui.shake_xy(st.shake, big and 11 or 5)
 				elseif magic then
-					ui.ring(st.fx_layer, tx, ey, st.us * 1.1, col, 0.25)
+					ui.ring(st.fx_layer, tx, ey, st.us * 1.1, col, dur(0.25))
 				else
 					ui.burst(st.fx_layer, tx + math.random(-14, 14), ey + math.random(-14, 14), 3, col, 36, 16)
 				end
@@ -876,11 +908,11 @@ local function support_fx(ev, color, sprite, field)
 	for _, col in ipairs(LANES) do
 		local U = unit(side, col)
 		if U and not U.dead then
-			ui.ring(st.fx_layer, U.home.x, U.home.y, st.us * 1.35, color, 0.36)
+			ui.ring(st.fx_layer, U.home.x, U.home.y, st.us * 1.35, color, dur(0.36))
 			if sprite then
 				local ic = ui.box(st.fx_layer, sprite, U.home.x, U.home.y + 4, st.us * 0.5, st.us * 0.5, color)
-				ui.pop(ic, 0.5, 1.2, 0.22)
-				gui.animate(ic, "color.w", 0, gui.EASING_INQUAD, 0.25, 0.16, function() gui.delete_node(ic) end)
+				ui.pop(ic, 0.5, 1.2, dur(0.22))
+				gui.animate(ic, "color.w", 0, gui.EASING_INQUAD, dur(0.25), dur(0.16), function() gui.delete_node(ic) end)
 			else
 				ui.burst(st.fx_layer, U.home.x, U.home.y, 5, color, st.us * 0.6, 20)
 			end
@@ -889,7 +921,7 @@ local function support_fx(ev, color, sprite, field)
 	local b = st.bars[side]
 	local v = ev.gained or ev.amount or 0 -- trait shields carry only `amount` (= the real gain)
 	if v > 0 then ui.float_text(st.fx_layer, "+" .. v, b.x, b.y + 30, 26, color, 46) end
-	ui.ring(st.fx_layer, st.faces[side].x, st.strip_y, 110, color, 0.36)
+	ui.ring(st.fx_layer, st.faces[side].x, st.strip_y, 110, color, dur(0.36))
 	local d = st.disp[side]
 	d[field] = d[field] + (ev.gained or ev.amount or 0)
 	set_bars(false)
@@ -900,47 +932,47 @@ local function schedule_effect(ev, t)
 	local k = ev.kind
 	if k == "attack" then
 		at(t, function() strike(ev) end)
-		return t + 0.36
+		return t + dur(0.28)
 	elseif k == "skill" then
 		at(t, function()
 			local c = ui.GEM_COLOR[ev.color] or ui.GOLD
 			audio.play("combo", 0.8, 0.8)
-			ui.flash(st.fx_layer, st.app.vw, st.app.vh, tint(c, 0.22), 0.3)
+			ui.flash(st.fx_layer, st.app.vw, st.app.vh, tint(c, 0.22), dur(0.25))
 			zoom_punch(1.04)
 			local A = unit(side_of(ev.who), ev.color)
 			if A then
-				ui.ring(st.fx_layer, A.home.x, A.home.y, st.us * 2.4, c, 0.45)
+				ui.ring(st.fx_layer, A.home.x, A.home.y, st.us * 2.4, c, dur(0.4))
 				local gl = ui.glow(ui.box(st.fx_layer, "glow", A.home.x, A.home.y, st.us * 2, st.us * 2, tint(c, 0.6)))
-				gui.animate(gl, "color.w", 0, gui.EASING_INQUAD, 0.5, 0, function() gui.delete_node(gl) end)
+				gui.animate(gl, "color.w", 0, gui.EASING_INQUAD, dur(0.4), 0, function() gui.delete_node(gl) end)
 				local ttl = i18n.t("SK_" .. ev.skill_id)
 				local short = string.match(ttl, "^(.-)%s*%(") or ttl
-				ui.banner(st.fx_layer, short, st.arena_cx, A.home.y + st.us * 0.55, 28, ui.GOLD, 0.5)
+				ui.banner(st.fx_layer, short, st.arena_cx, A.home.y + st.us * 0.55, 28, ui.GOLD, dur(0.4))
 			end
 		end)
-		at(t + 0.15, function() strike(ev) end)
-		return t + 0.7
+		at(t + dur(0.12), function() strike(ev) end)
+		return t + dur(0.55)
 	elseif k == "heal" then
 		at(t, function()
 			audio.play("heal")
 			support_fx(ev, ui.GREEN, nil, "hp")
 		end)
-		return t + 0.3
+		return t + dur(0.24)
 	elseif k == "shield" then
 		at(t, function()
 			audio.play("shield")
 			support_fx(ev, ui.BLUE, "icon_shield", "shield")
 		end)
-		return t + 0.3
+		return t + dur(0.24)
 	elseif k == "rune" then
 		at(t, function()
 			local U = unit(side_of(ev.who), ev.color)
 			if U then
 				local rx = U.rune_x + U.rune_dir * (ev.slot - 1) * st.rune_step
 				ui.burst(st.fx_layer, rx, U.rune_y, 4, ui.GEM_COLOR[ev.rune_color] or ui.GOLD, 28, 16)
-				ui.ring(st.fx_layer, rx, U.rune_y, 46, ui.GEM_COLOR[ev.rune_color] or ui.GOLD, 0.25)
+				ui.ring(st.fx_layer, rx, U.rune_y, 46, ui.GEM_COLOR[ev.rune_color] or ui.GOLD, dur(0.22))
 			end
 		end)
-		return t + 0.1
+		return t + dur(0.08)
 	elseif k == "status" then
 		at(t, function()
 			local side = side_of(ev.who)
@@ -951,21 +983,21 @@ local function schedule_effect(ev, t)
 			local col = COLS[ev.stype] or ui.DIAMOND
 			local fx = st.faces[side].x
 			local ic = ui.box(st.fx_layer, ICONS[ev.stype] or "icon_star", fx, st.strip_y, 70, 70)
-			ui.pop(ic, 0.3, 1.2, 0.25)
-			gui.animate(ic, "color.w", 0, gui.EASING_INQUAD, 0.3, 0.4, function() gui.delete_node(ic) end)
+			ui.pop(ic, 0.3, 1.2, dur(0.22))
+			gui.animate(ic, "color.w", 0, gui.EASING_INQUAD, dur(0.25), dur(0.32), function() gui.delete_node(ic) end)
 			ui.float_text(st.fx_layer, i18n.t(key), st.bars[side].x, st.strip_y + 40, 22, col, 40)
 			for _, c2 in ipairs(LANES) do
 				local U = unit(side, c2)
-				if U then ui.ring(st.fx_layer, U.home.x, U.home.y, st.us * 1.2, col, 0.3) end
+				if U then ui.ring(st.fx_layer, U.home.x, U.home.y, st.us * 1.2, col, dur(0.25)) end
 			end
 		end)
-		return t + 0.25
+		return t + dur(0.22)
 	elseif k == "curse_clear" then
 		at(t, function()
 			local t_side = side_of(ev.who == "player" and "enemy" or "player")
 			local b = st.bars[t_side]
 			audio.play("hit", 0.85, 1.15)
-			ui.ring(st.fx_layer, b.x, b.y, 120, ui.PURPLE, 0.35)
+			ui.ring(st.fx_layer, b.x, b.y, 120, ui.PURPLE, dur(0.28))
 			ui.burst(st.fx_layer, b.x, b.y, 8, ui.PURPLE, 60, 20)
 			ui.float_text(st.fx_layer, i18n.t("CURSE_TAG") .. " -" .. (ev.dmg or 0), b.x, b.y + 34, 24, ui.PURPLE, 48)
 			local d = st.disp[t_side]
@@ -973,13 +1005,13 @@ local function schedule_effect(ev, t)
 			d.shield = d.shield - (ev.blocked or 0)
 			set_bars(false)
 		end)
-		return t + 0.3
+		return t + dur(0.25)
 	elseif k == "curse_blast" then
 		at(t, function()
 			local b = st.bars.player
 			audio.play("hit", 0.9, 0.8)
 			ui.shake_xy(st.shake, 9)
-			ui.ring(st.fx_layer, b.x, b.y, 140, ui.RED, 0.4)
+			ui.ring(st.fx_layer, b.x, b.y, 140, ui.RED, dur(0.32))
 			ui.burst(st.fx_layer, b.x, b.y, 10, ui.RED, 65, 22)
 			ui.float_text(st.fx_layer, i18n.t("CURSE_TAG") .. " -" .. (ev.dmg or 0), b.x, b.y + 34, 24, ui.RED, 48)
 			local d = st.disp.player
@@ -987,33 +1019,33 @@ local function schedule_effect(ev, t)
 			d.shield = d.shield - (ev.blocked or 0)
 			set_bars(false)
 		end)
-		return t + 0.45
+		return t + dur(0.35)
 	elseif k == "board_freeze" then
 		at(t, function()
 			audio.play("shield", 0.7, 1.5)
 			for _, p in ipairs(ev.cells or {}) do
 				local cx, cy = cell_pos(p.r, p.c)
-				ui.ring(st.fx_layer, cx, cy, st.cell * 1.4, ui.DIAMOND, 0.38)
+				ui.ring(st.fx_layer, cx, cy, st.cell * 1.4, ui.DIAMOND, dur(0.32))
 				ui.burst(st.fx_layer, cx, cy, 5, ui.DIAMOND, st.cell * 0.4, 16)
 			end
 			sync_board()
 		end)
-		return t + 0.25
+		return t + dur(0.20)
 	elseif k == "board_curse" or k == "curse_tick" then
 		at(t, function()
 			for _, p in ipairs(ev.cells or {}) do
 				local cx, cy = cell_pos(p.r, p.c)
-				ui.ring(st.fx_layer, cx, cy, st.cell * 1.2, ui.PURPLE, 0.3)
+				ui.ring(st.fx_layer, cx, cy, st.cell * 1.2, ui.PURPLE, dur(0.25))
 			end
 			sync_board()
 		end)
-		return t + 0.12
+		return t + dur(0.10)
 	elseif k == "dot" then
 		at(t, function()
 			local side = side_of(ev.who)
 			local col = ev.dtype == "poison" and ui.GREEN or ui.RED
 			local b = st.bars[side]
-			ui.ring(st.fx_layer, st.faces[side].x, st.strip_y, 100, col, 0.3)
+			ui.ring(st.fx_layer, st.faces[side].x, st.strip_y, 100, col, dur(0.25))
 			ui.burst(st.fx_layer, b.x, b.y, 6, col, 50, 18)
 			ui.float_text(st.fx_layer, i18n.t(ev.dtype == "poison" and "POISON_TAG" or "BURN_TAG") .. " -" .. ev.dmg, b.x, b.y + 30, 22, col, 46)
 			for _, c2 in ipairs(LANES) do
@@ -1025,62 +1057,62 @@ local function schedule_effect(ev, t)
 			d.shield = d.shield - (ev.blocked or 0)
 			set_bars(false)
 		end)
-		return t + 0.45
+		return t + dur(0.35)
 	elseif k == "frozen" then
 		at(t, function()
 			local side = side_of(ev.who)
 			local o = st.orbs[side]
 			audio.play("shield", 0.6, 1.4)
-			ui.ring(st.fx_layer, st.faces[side].x, st.strip_y, 130, ui.DIAMOND, 0.45)
-			ui.ring(st.fx_layer, o.x + o.dir * 30, o.y, 90, ui.DIAMOND, 0.4)
+			ui.ring(st.fx_layer, st.faces[side].x, st.strip_y, 130, ui.DIAMOND, dur(0.35))
+			ui.ring(st.fx_layer, o.x + o.dir * 30, o.y, 90, ui.DIAMOND, dur(0.30))
 			ui.float_text(st.fx_layer, i18n.t("FROZEN_FMT", { n = ev.lost or 1 }), st.bars[side].x, st.strip_y + 40, 24, ui.DIAMOND, 52)
 		end)
-		return t + 0.4
+		return t + dur(0.30)
 	elseif k == "turn" then
+		local is_p = ev.turn == "player"
 		at(t, function()
-			local is_p = ev.turn == "player"
 			turn_banner(is_p, moves_sub(is_p and "player" or "enemy"))
 			M.refresh_hud()
 		end)
-		return t + 1.1
+		return t + dur(is_p and 0.65 or 0.45)
 	elseif k == "extra_move" then
 		at(t, function()
 			audio.play("upgrade")
 			local o = st.orbs.player
 			ui.float_text(st.fx_layer, i18n.t("BOOST_extra_move"), o.x + 60, o.y + 20, 24, ui.GOLD, 40)
-			ui.ring(st.fx_layer, o.x + 30, o.y, 120, ui.GOLD, 0.35)
+			ui.ring(st.fx_layer, o.x + 30, o.y, 120, ui.GOLD, dur(0.28))
 			M.refresh_hud()
 		end)
-		return t + 0.2
+		return t + dur(0.18)
 	elseif k == "revive" then
 		at(t, function()
 			audio.play("levelup")
 			for _, col in ipairs(LANES) do rise_unit("player", col) end
-			ui.ring(st.fx_layer, st.faces.player.x, st.strip_y, 220, ui.GREEN, 0.6)
+			ui.ring(st.fx_layer, st.faces.player.x, st.strip_y, 220, ui.GREEN, dur(0.45))
 			sync_disp()
 		end)
-		return t + 0.5
+		return t + dur(0.40)
 	elseif k == "win" or k == "lose" then
 		local won = k == "win"
-		at(t + 0.2, function()
+		at(t + dur(0.15), function()
 			local loser = won and "enemy" or "player"
-			for i, col in ipairs(LANES) do fall_unit(loser, col, false, (i - 1) * 0.16) end
-			gui.animate(st.faces[loser].face, "color.w", 0.25, gui.EASING_INQUAD, 0.5, 0.2)
-			ui.ring(st.fx_layer, st.faces[loser].x, st.strip_y, 220, won and ui.GOLD or ui.RED, 0.6)
+			for i, col in ipairs(LANES) do fall_unit(loser, col, false, (i - 1) * dur(0.12)) end
+			gui.animate(st.faces[loser].face, "color.w", 0.25, gui.EASING_INQUAD, dur(0.4), dur(0.15))
+			ui.ring(st.fx_layer, st.faces[loser].x, st.strip_y, 220, won and ui.GOLD or ui.RED, dur(0.45))
 		end)
-		at(t + 0.75, function()
+		at(t + dur(0.65), function()
 			audio.play(won and "win" or "lose")
 			ui.shake_xy(st.shake, 16)
 			zoom_punch(1.06)
 			if won then
-				ui.banner(st.fx_layer, i18n.t("VICTORY"), st.arena_cx, st.arena_cy, 72, ui.GOLD, 0.9)
+				ui.banner(st.fx_layer, i18n.t("VICTORY"), st.arena_cx, st.arena_cy, 72, ui.GOLD, dur(0.8))
 				ui.confetti(st.fx_layer, st.arena_cx, st.app.vh + 40, st.app.vw, 40)
 			else
-				ui.banner(st.fx_layer, i18n.t("DEFEAT"), st.arena_cx, st.arena_cy, 64, ui.RED, 0.9)
+				ui.banner(st.fx_layer, i18n.t("DEFEAT"), st.arena_cx, st.arena_cy, 64, ui.RED, dur(0.8))
 			end
 		end)
-		at(t + 1.9, function() st.app.on_battle_end(won) end)
-		return t + 2.0
+		at(t + dur(1.6), function() st.app.on_battle_end(won) end)
+		return t + dur(1.7)
 	end
 	return t
 end
@@ -1090,8 +1122,8 @@ local function anim_swap(ev)
 	local a, b = st.gems[ev.r1][ev.c1], st.gems[ev.r2][ev.c2]
 	local x1, y1 = cell_pos(ev.r1, ev.c1)
 	local x2, y2 = cell_pos(ev.r2, ev.c2)
-	if a then gui.animate(a.node, "position", V3(x2, y2, 0), gui.EASING_INOUTQUAD, 0.12) end
-	if b then gui.animate(b.node, "position", V3(x1, y1, 0), gui.EASING_INOUTQUAD, 0.12) end
+	if a then gui.animate(a.node, "position", V3(x2, y2, 0), gui.EASING_INOUTQUAD, dur(0.10)) end
+	if b then gui.animate(b.node, "position", V3(x1, y1, 0), gui.EASING_INOUTQUAD, dur(0.10)) end
 	st.gems[ev.r1][ev.c1], st.gems[ev.r2][ev.c2] = b, a
 	audio.play("whoosh", 0.35, 1.4)
 end
@@ -1102,17 +1134,17 @@ local function telegraph(ev)
 	local x2, y2 = cell_pos(ev.r2, ev.c2)
 	for _, p in ipairs({ { ev.r1, ev.c1 }, { ev.r2, ev.c2 } }) do
 		local x, y = cell_pos(p[1], p[2])
-		ui.ring(st.fx_layer, x, y, st.cell * 1.3, ui.RED, 0.3)
+		ui.ring(st.fx_layer, x, y, st.cell * 1.3, ui.RED, dur(0.22))
 		local g = st.gems[p[1]][p[2]]
 		if g then
-			gui.animate(g.node, "scale", V3(1.15, 1.15, 1), gui.EASING_OUTQUAD, 0.12, 0, function()
-				gui.animate(g.node, "scale", V3(1, 1, 1), gui.EASING_INQUAD, 0.12)
+			gui.animate(g.node, "scale", V3(1.15, 1.15, 1), gui.EASING_OUTQUAD, dur(0.09), 0, function()
+				gui.animate(g.node, "scale", V3(1, 1, 1), gui.EASING_INQUAD, dur(0.09))
 			end)
 		end
 	end
 	local hand = ui.box(st.fx_layer, "icon_hand", x1 + 14, y1 - 20, 58, 58, V4(1, 0.45, 0.45, 1))
-	gui.animate(hand, "position", V3(x2 + 14, y2 - 20, 0), gui.EASING_INOUTQUAD, 0.26)
-	gui.animate(hand, "color.w", 0, gui.EASING_INQUAD, 0.12, 0.3, function() gui.delete_node(hand) end)
+	gui.animate(hand, "position", V3(x2 + 14, y2 - 20, 0), gui.EASING_INOUTQUAD, dur(0.18))
+	gui.animate(hand, "color.w", 0, gui.EASING_INQUAD, dur(0.08), dur(0.20), function() gui.delete_node(hand) end)
 end
 
 local COMBO_KEYS = { [2] = "COMBO_2", [3] = "COMBO_3", [4] = "COMBO_4" }
@@ -1124,7 +1156,7 @@ local function anim_step(ev, step)
 	audio.play("match", 0.9, 1.0 + (cascade - 1) * 0.14)
 	if cascade >= 2 then
 		local key = COMBO_KEYS[math.min(4, cascade)]
-		ui.banner(st.fx_layer, i18n.t(key, { n = cascade }), st.board_cx, st.board_cy + st.cell * 0.6, 40 + math.min(4, cascade) * 6, ui.GOLD, 0.35)
+		ui.banner(st.fx_layer, i18n.t(key, { n = cascade }), st.board_cx, st.board_cy + st.cell * 0.6, 40 + math.min(4, cascade) * 6, ui.GOLD, dur(0.32))
 		ui.shake_xy(st.shake, 3 + cascade * 2)
 		if cascade >= 3 then audio.play("combo", 0.7, 1 + cascade * 0.05) end
 	end
@@ -1139,10 +1171,10 @@ local function anim_step(ev, step)
 		local lst = cells_by_col[cl.color]
 		if not lst then lst = {}; cells_by_col[cl.color] = lst end
 		lst[#lst + 1] = { x = cx, y = cy }
-		ui.ring(st.fx_layer, cx, cy, st.cell * 0.9, col, 0.22)
+		ui.ring(st.fx_layer, cx, cy, st.cell * 0.9, col, dur(0.20))
 		if not many then ui.burst(st.fx_layer, cx, cy, 3, col, st.cell * 0.45, 16) end
 		if cl.special then
-			ui.ring(st.fx_layer, cx, cy, st.cell * 2.6, ui.WHITE, 0.32)
+			ui.ring(st.fx_layer, cx, cy, st.cell * 2.6, ui.WHITE, dur(0.28))
 			ui.shake_xy(st.shake, 6)
 		end
 	end
@@ -1156,13 +1188,13 @@ local function anim_step(ev, step)
 		local g = st.gems[p.r][p.c]
 		if g then kill_gem(g); st.gems[p.r][p.c] = nil end
 		local cx, cy = cell_pos(p.r, p.c)
-		ui.ring(st.fx_layer, cx, cy, st.cell * 1.4, ui.GOLD, 0.3)
+		ui.ring(st.fx_layer, cx, cy, st.cell * 1.4, ui.GOLD, dur(0.28))
 		ui.burst(st.fx_layer, cx, cy, 7, ui.BONE, st.cell * 0.5, 18)
 		ui.float_text(st.fx_layer, i18n.t("SHATTER_TAG"), cx, cy + 16, 18, ui.GOLD, 32)
 	end
 	for _, p in ipairs(step.melted or {}) do
 		local cx, cy = cell_pos(p.r, p.c)
-		ui.ring(st.fx_layer, cx, cy, st.cell * 1.25, ui.DIAMOND, 0.28)
+		ui.ring(st.fx_layer, cx, cy, st.cell * 1.25, ui.DIAMOND, dur(0.25))
 		ui.burst(st.fx_layer, cx, cy, 5, ui.DIAMOND, st.cell * 0.4, 15)
 		local g = st.gems[p.r][p.c]
 		if g and g.ice then
@@ -1187,43 +1219,43 @@ local function anim_step(ev, step)
 		local count = math.min(#pts, 6)
 		for k = 1, count do
 			local p = pts[k]
-			local delay = (k - 1) * 0.02
-			local dur = 0.16 + math.min(2, k - 1) * 0.015
+			local delay = (k - 1) * dur(0.015)
+			local orb_dur = dur(0.14) + math.min(2, k - 1) * dur(0.012)
 			local orb = ui.glow(ui.box(st.fx_layer, "glow", p.x, p.y, 44, 44, gc))
 			ui.glow(ui.box(orb, "glow", 0, 0, 20, 20, ui.WHITE))
-			ui.after(delay + dur * 0.5, function()
-				ui.spark_dot(st.fx_layer, (p.x + tx) * 0.5, (p.y + ty) * 0.5, gc, 22, 0.18)
+			ui.after(delay + orb_dur * 0.5, function()
+				ui.spark_dot(st.fx_layer, (p.x + tx) * 0.5, (p.y + ty) * 0.5, gc, 22, dur(0.15))
 			end)
-			ui.fly(orb, tx, ty, dur, delay, function()
+			ui.fly(orb, tx, ty, orb_dur, delay, function()
 				gui.delete_node(orb)
 				if k == 1 then
-					ui.ring(st.fx_layer, tx, ty, st.us * 1.15, gc, 0.22)
+					ui.ring(st.fx_layer, tx, ty, st.us * 1.15, gc, dur(0.18))
 					ui.burst(st.fx_layer, tx, ty, 4, gc, st.us * 0.45, 18)
 				end
 			end)
 		end
 	end
 	-- Specials are born where the match was made
-	ui.after(0.08, function()
+	ui.after(dur(0.06), function()
 		for _, sp in ipairs(step.specials or {}) do
 			local old = st.gems[sp.r][sp.c]
 			if old then gui.delete_node(old.node) end
 			st.gems[sp.r][sp.c] = make_gem(sp.r, sp.c, sp)
-			ui.pop(st.gems[sp.r][sp.c].node, 0.2, 1, 0.3)
+			ui.pop(st.gems[sp.r][sp.c].node, 0.2, 1, dur(0.24))
 			local x, y = cell_pos(sp.r, sp.c)
-			ui.ring(st.fx_layer, x, y, st.cell * 1.8, ui.GOLD, 0.35)
+			ui.ring(st.fx_layer, x, y, st.cell * 1.8, ui.GOLD, dur(0.28))
 			audio.play("star", 0.5, 1.2)
 		end
 	end)
 	-- Gravity + refill
-	ui.after(0.13, function()
+	ui.after(dur(0.11), function()
 		for _, f in ipairs(step.falls or {}) do
 			local g = st.gems[f.from_r][f.c]
 			st.gems[f.from_r][f.c] = nil
 			if g then
 				local x, y = cell_pos(f.to_r, f.c)
 				gui.cancel_animations(g.node, "position")
-				gui.animate(g.node, "position", V3(x, y, 0), gui.EASING_OUTBOUNCE, 0.24)
+				gui.animate(g.node, "position", V3(x, y, 0), gui.EASING_OUTBOUNCE, dur(0.20))
 			end
 			st.gems[f.to_r][f.c] = g
 		end
@@ -1233,7 +1265,7 @@ local function anim_step(ev, step)
 			local _, top_y = cell_pos(sp.r + per_col[sp.c], sp.c)
 			local g = make_gem(sp.r, sp.c, sp, top_y)
 			local x, y = cell_pos(sp.r, sp.c)
-			gui.animate(g.node, "position", V3(x, y, 0), gui.EASING_OUTBOUNCE, 0.26, (sp.r - 1) * 0.012)
+			gui.animate(g.node, "position", V3(x, y, 0), gui.EASING_OUTBOUNCE, dur(0.22), (sp.r - 1) * dur(0.01))
 			st.gems[sp.r][sp.c] = g
 		end
 	end)
@@ -1245,12 +1277,12 @@ local function anim_shuffle()
 		for c = 1, N do
 			local g = st.gems[r][c]
 			if g then
-				gui.animate(g.node, "scale", V3(0.05, 0.05, 1), gui.EASING_INBACK, 0.2, (r + c) * 0.01)
-				gui.animate(g.node, "euler.z", 180, gui.EASING_INQUAD, 0.2, (r + c) * 0.01)
+				gui.animate(g.node, "scale", V3(0.05, 0.05, 1), gui.EASING_INBACK, dur(0.18), (r + c) * dur(0.008))
+				gui.animate(g.node, "euler.z", 180, gui.EASING_INQUAD, dur(0.18), (r + c) * dur(0.008))
 			end
 		end
 	end
-	ui.after(0.3, function()
+	ui.after(dur(0.25), function()
 		rebuild_gems(true)
 		ui.float_text(st.fx_layer, i18n.t("SHUFFLED"), st.board_cx, st.board_cy, 36, ui.DIAMOND, 30)
 	end)
@@ -1275,7 +1307,7 @@ function M.process()
 			if ev.kind == "swap" then
 				if ev.who == "enemy" then
 					at(t0, function() telegraph(ev) end)
-					t0 = t0 + 0.36
+					t0 = t0 + dur(0.22)
 				end
 				at(t0, function()
 					anim_swap(ev)
@@ -1283,46 +1315,46 @@ function M.process()
 					local o = st.orbs[ev.who]
 					local f = s[ev.who]
 					if o and f then
-						ui.ring(st.fx_layer, o.x + o.dir * f.moves_left * o.step, o.y, 54, ev.who == "player" and ui.GOLD or ui.RED, 0.3)
+						ui.ring(st.fx_layer, o.x + o.dir * f.moves_left * o.step, o.y, 54, ev.who == "player" and ui.GOLD or ui.RED, dur(0.25))
 					end
 				end)
-				t0 = t0 + 0.14
+				t0 = t0 + dur(0.12)
 			else
 				at(t0, function()
 					local hx, hy = cell_pos(ev.r, ev.c)
 					audio.play("hit", 1, 0.8)
-					ui.ring(st.fx_layer, hx, hy, 150, ui.GOLD, 0.32)
+					ui.ring(st.fx_layer, hx, hy, 150, ui.GOLD, dur(0.28))
 					ui.burst(st.fx_layer, hx, hy, 10, ui.GOLD, 70, 24)
 					ui.shake_xy(st.shake, 8)
 				end)
-				t0 = t0 + 0.16
+				t0 = t0 + dur(0.14)
 			end
 			local step_t = {}
 			for k, step in ipairs(ev.steps or {}) do
 				step_t[k] = t0
 				at(t0, function() anim_step(ev, step) end)
-				t0 = t0 + STEP_DUR
+				t0 = t0 + dur(STEP_DUR)
 			end
 			local fx_end = t0
 			local per_step = {}
 			local j = i + 1
 			while j <= #evs and evs[j].step do
 				local e = evs[j]
-				local base = (step_t[e.step] or t0) + 0.16
+				local base = (step_t[e.step] or t0) + dur(0.14)
 				local n = per_step[e.step] or 0
 				if e.kind == "attack" or e.kind == "skill" then per_step[e.step] = n + 1 end
-				fx_end = math.max(fx_end, schedule_effect(e, base + math.min(3, n) * 0.13))
+				fx_end = math.max(fx_end, schedule_effect(e, base + math.min(3, n) * dur(0.11)))
 				j = j + 1
 			end
 			if ev.shuffled then
 				at(t0, anim_shuffle)
-				t0 = t0 + 0.6
+				t0 = t0 + dur(0.4)
 			end
 			t = math.max(t0, fx_end)
 			i = j
 		elseif ev.kind == "shuffle" then
 			at(t, anim_shuffle)
-			t = t + 0.6
+			t = t + dur(0.4)
 			i = i + 1
 		else
 			t = math.max(t, schedule_effect(ev, t))
@@ -1331,7 +1363,7 @@ function M.process()
 	end
 
 	st.busy = true
-	at(t + 0.05, function()
+	at(t + dur(0.04), function()
 		st.busy = false
 		sync_board()
 		sync_disp()
@@ -1413,6 +1445,89 @@ local function can_act()
 	return not st.busy and s.status == "play" and s.turn == "player"
 end
 
+-- ---------------------------------------------------------------- tactile juice & fidgeting
+local function click_sparks(x, y, color)
+	if not st.fx_layer then return end
+	color = color or ui.GOLD
+	ui.ring(st.fx_layer, x, y, 32, color, dur(0.18))
+	for _ = 1, 3 do
+		local a = math.random() * math.pi * 2
+		local d = 16 + math.random() * 26
+		local dur_s = dur(0.18 + math.random() * 0.1)
+		local n = ui.glow(ui.box(st.fx_layer, "spark", x, y, 14, 14, color))
+		gui.animate(n, "position", V3(x + math.cos(a) * d, y + math.sin(a) * d, 0), gui.EASING_OUTCUBIC, dur_s)
+		gui.animate(n, "color.w", 0, gui.EASING_INQUAD, dur_s, 0, function() gui.delete_node(n) end)
+	end
+end
+
+local function touch_trail(x, y)
+	if not st.fx_layer then return end
+	if not st.last_trail then
+		st.last_trail = { x = x, y = y }
+		return
+	end
+	local dx = x - st.last_trail.x
+	local dy = y - st.last_trail.y
+	if dx * dx + dy * dy >= 500 then
+		st.last_trail.x, st.last_trail.y = x, y
+		local col = V4(1, 0.94, 0.65, 0.8)
+		ui.spark_dot(st.fx_layer, x, y, col, 15, dur(0.22))
+	end
+end
+
+local function squish_gem(r, c, g)
+	if not g or g.squishing or not g.node then return end
+	g.squishing = true
+	gui.cancel_animations(g.node, "scale")
+	gui.set_scale(g.node, V3(1, 1, 1))
+	gui.animate(g.node, "scale", V3(1.18, 0.82, 1), gui.EASING_OUTQUAD, dur(0.06), 0, function()
+		gui.animate(g.node, "scale", V3(0.9, 1.12, 1), gui.EASING_INOUTQUAD, dur(0.07), 0, function()
+			gui.animate(g.node, "scale", V3(1, 1, 1), gui.EASING_OUTBACK, dur(0.11), 0, function()
+				g.squishing = false
+			end)
+		end)
+	end)
+	audio.play("tap", 0.55, 1.35 + math.random() * 0.15)
+	local cx, cy = cell_pos(r, c)
+	local color = ui.GEM_COLOR[g.color] or ui.GOLD
+	ui.burst(st.fx_layer, cx, cy, 3, color, st.cell * 0.35, 14)
+end
+
+function M.on_raw_input(action_id, action)
+	local s = st.session
+	if not s or s.status ~= "play" then return end
+	local pressed = action.pressed or (action.touch and action.touch[1] and action.touch[1].pressed)
+	local released = action.released or (action.touch and action.touch[1] and action.touch[1].released)
+	local x = action.x or (action.touch and action.touch[1] and action.touch[1].x)
+	local y = action.y or (action.touch and action.touch[1] and action.touch[1].y)
+	if not (x and y) then return end
+
+	if pressed then
+		local r, c = screen_to_cell(x, y)
+		local col = ui.GOLD
+		local g = (r and c and st.gems and st.gems[r]) and st.gems[r][c]
+		if g and g.color and ui.GEM_COLOR[g.color] then
+			col = ui.GEM_COLOR[g.color]
+		end
+		click_sparks(x, y, col)
+
+		if not can_act() then
+			if g then
+				squish_gem(r, c, g)
+			end
+			if s.turn == "enemy" and not st.busy then
+				st.ai_timer = AI_DELAY
+			elseif st.busy then
+				st.rush_t = 0.65
+			end
+		end
+	elseif released then
+		st.last_trail = nil
+	else
+		touch_trail(x, y)
+	end
+end
+
 function M.touch_start(x, y)
 	clear_hint()
 	if not can_act() then return end
@@ -1480,6 +1595,13 @@ end
 function M.update(dt)
 	local s = st.session
 	if not (s and st.gems) then return end
+
+	-- Rush timer decay (tap acceleration)
+	if st.rush_t and st.rush_t > 0 then
+		st.rush_t = st.rush_t - dt
+		if st.rush_t <= 0 then st.rush_t = nil end
+	end
+
 	-- Idle shimmer on random gems
 	st.shimmer_t = (st.shimmer_t or 0) + dt
 	if st.shimmer_t > 0.7 then
@@ -1493,7 +1615,8 @@ function M.update(dt)
 	if s.status ~= "play" or st.busy then return end
 	if s.turn == "enemy" then
 		st.ai_timer = st.ai_timer + dt
-		if st.ai_timer >= 0.45 then
+		local ai_wait = AI_DELAY / speed_mul()
+		if st.ai_timer >= ai_wait then
 			st.ai_timer = 0
 			battle.step_enemy(s)
 			M.process()
@@ -1507,7 +1630,8 @@ function M.update(dt)
 			if m then try_swap(m.r1, m.c1, m.r2, m.c2) end
 			return
 		end
-		if st.idle >= HINT_DELAY and not st.hint_nodes then
+		local hint_wait = HINT_DELAY / speed_mul()
+		if st.idle >= hint_wait and not st.hint_nodes then
 			show_hint()
 		end
 	end

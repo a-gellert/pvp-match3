@@ -83,7 +83,7 @@ const srv = http.createServer((req, res) => {
 });
 
 srv.listen(PORT, '127.0.0.1', async () => {
-  const userData = path.join(OUT, '_prof_' + PORT);
+  const userData = path.resolve(OUT, '_prof_' + PORT);
   const proc = spawn(BROWSER, [
     '--headless=new', '--disable-gpu', '--autoplay-policy=no-user-gesture-required', `--remote-debugging-port=${DBG_PORT}`,
     `--window-size=${VW},${VH}`, `--user-data-dir=${userData}`,
