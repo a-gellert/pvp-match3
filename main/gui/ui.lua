@@ -75,30 +75,30 @@ function M.hex(s, a)
 	return V4(math.floor(v / 65536) / 255, math.floor(v / 256) % 256 / 255, v % 256 / 255, a or 1)
 end
 
--- Casual Dark Fantasy palette
+-- Casual Dark Fantasy palette (Royal Slate & Cobalt / Clash Royale style)
 M.WHITE    = V4(1, 1, 1, 1)
 M.CLEAR    = V4(1, 1, 1, 0)
-M.INK      = M.hex("#0c0f18")
-M.BG_DARK  = M.hex("#111521")
-M.BG_PANEL = M.hex("#1c2233")
-M.BG_CARD  = M.hex("#262e45")
-M.BONE     = M.hex("#f3eee6")
-M.DIM      = M.hex("#9aa6bf")
-M.GOLD     = M.hex("#f2bd47")
-M.DIAMOND  = M.hex("#59d8ff")
-M.PRESTIGE = M.hex("#d26eff")
-M.RED      = M.hex("#ff4a64")
-M.YELLOW   = M.hex("#ffd644")
-M.PURPLE   = M.hex("#b95cff")
-M.GREEN    = M.hex("#48e58b")
-M.BLUE     = M.hex("#4fb8ff")
-M.CRIMSON  = M.hex("#c93048")
+M.INK      = M.hex("#090d16")
+M.BG_DARK  = M.hex("#162032")
+M.BG_PANEL = M.hex("#22314a")
+M.BG_CARD  = M.hex("#2b3e5e")
+M.BONE     = M.hex("#f8f5ee")
+M.DIM      = M.hex("#a5b5d4")
+M.GOLD     = M.hex("#ffc72c")
+M.DIAMOND  = M.hex("#5be4ff")
+M.PRESTIGE = M.hex("#d977ff")
+M.RED      = M.hex("#ff4d66")
+M.YELLOW   = M.hex("#ffd738")
+M.PURPLE   = M.hex("#bf5eff")
+M.GREEN    = M.hex("#44ea8a")
+M.BLUE     = M.hex("#4db8ff")
+M.CRIMSON  = M.hex("#e63946")
 M.SHADOW   = V4(0, 0, 0, 0.45)
 
 M.GEM_COLOR = { red = M.RED, yellow = M.YELLOW, purple = M.PURPLE, green = M.GREEN, blue = M.BLUE, prism = M.WHITE }
 M.GEM_SPRITE = { red = "gem_red", yellow = "gem_yellow", purple = "gem_purple", green = "gem_green", blue = "gem_blue", prism = "gem_prism" }
 M.RARITY_FRAME = { common = "card_common", rare = "card_rare", epic = "card_epic", legendary = "card_legendary" }
-M.RARITY_COLOR = { common = M.hex("#b8c4dd"), rare = M.hex("#f09a36"), epic = M.hex("#d273ff"), legendary = M.hex("#52f0ff") }
+M.RARITY_COLOR = { common = M.hex("#cbd5e1"), rare = M.hex("#f59e0b"), epic = M.hex("#c084fc"), legendary = M.hex("#38bdf8") }
 
 M.gen = 0
 M.popup_gen = 0
@@ -573,9 +573,11 @@ end
 function M.background(parent, vw, vh, tint, embers)
 	local root = M.pane(parent, 0, 0)
 	M.box(root, "square", vw / 2, vh / 2, vw, vh, M.BG_DARK)
-	local t = tint or M.hex("#3a4a8a")
-	local g1 = M.glow(M.box(root, "bg_glow", vw * 0.2, vh * 0.78, vw * 0.9, vh * 0.75, V4(t.x, t.y, t.z, 0.16)))
-	local g2 = M.glow(M.box(root, "bg_glow", vw * 0.85, vh * 0.3, vw * 0.8, vh * 0.7, V4(0.55, 0.3, 0.9, 0.12)))
+	local t = tint or M.hex("#41588a")
+	-- Soft center spotlight: illuminates the table/arena like in Clash Royale
+	M.glow(M.box(root, "glow", vw / 2, vh * 0.52, vw * 1.05, vh * 0.72, V4(0.25, 0.38, 0.6, 0.22)))
+	local g1 = M.glow(M.box(root, "bg_glow", vw * 0.2, vh * 0.78, vw * 0.9, vh * 0.75, V4(t.x, t.y, t.z, 0.2)))
+	local g2 = M.glow(M.box(root, "bg_glow", vw * 0.85, vh * 0.3, vw * 0.8, vh * 0.7, V4(0.48, 0.35, 0.85, 0.16)))
 	gui.animate(g1, "position.x", vw * 0.3, gui.EASING_INOUTSINE, 7, 0, nil, gui.PLAYBACK_LOOP_PINGPONG)
 	gui.animate(g2, "position.y", vh * 0.4, gui.EASING_INOUTSINE, 9, 0, nil, gui.PLAYBACK_LOOP_PINGPONG)
 	if embers ~= false then

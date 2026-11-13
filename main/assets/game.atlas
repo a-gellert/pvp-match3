@@ -20,6 +20,9 @@ images {
   image: "/main/assets/images/btn_gold.png"
 }
 images {
+  image: "/main/assets/images/btn_green.png"
+}
+images {
   image: "/main/assets/images/btn_purple.png"
 }
 images {

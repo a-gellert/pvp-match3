@@ -7,6 +7,7 @@ return {
 	card_epic = { 96, 96 },
 	card_legendary = { 96, 96 },
 	btn_gold = { 96, 64 },
+	btn_green = { 96, 64 },
 	btn_purple = { 96, 64 },
 	btn_crimson = { 96, 64 },
 	btn_dark = { 96, 64 },

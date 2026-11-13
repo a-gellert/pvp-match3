@@ -162,76 +162,104 @@ function canvas(w, h) {
 }
 
 // ======================================================================= UI & PANELS
-{ // panel_dark (96x96 slice-9, border 22)
+{ // panel_dark (96x96 slice-9, border 22) - Royal slate beveled tablet (Clash Royale)
   const c = canvas(96, 96);
-  const outer = rbox(48, 48, 44, 44, 14);
-  c.outlined(outer, vgrad(H('#242c42'), H('#161b29'), 6, 90), 3);
-  c.stroke(rbox(48, 48, 41, 41, 12), H('#4a587a', 0.8), 2.5);
-  c.stroke(rbox(48, 48, 37, 37, 10), H('#0d1019', 0.6), 2);
+  c.fill(rbox(48, 51, 44, 43, 15), H('#070b13', 0.55));
+  const outer = rbox(48, 47, 44, 43, 14);
+  c.outlined(outer, vgrad(H('#324466'), H('#1a2538'), 6, 88), 2.5, H('#0c131f'));
+  c.stroke(rbox(48, 47, 42, 41, 12), vgrad(H('#5e7ca8', 0.75), H('#28374d', 0.2), 6, 88), 2);
+  c.fill(rbox(48, 48, 38, 38, 10), vgrad(H('#22314a'), H('#192336'), 10, 86));
+  c.fill(rbox(48, 20, 36, 6, 4), H('#ffffff', 0.05));
   c.save('panel_dark');
 }
-{ // panel_stone (96x96 slice-9, border 24) - heavy board frame
+{ // panel_stone (96x96 slice-9, border 24) - Sculpted royal stone & gold trim (Empires & Puzzles / Clash of Clans)
   const c = canvas(96, 96);
-  const outer = rbox(48, 48, 45, 45, 16);
-  c.outlined(outer, vgrad(H('#2e3752'), H('#181d2c'), 4, 92), 3);
-  c.stroke(rbox(48, 48, 42, 42, 13), H('#b68c44', 0.85), 3);
-  c.fill(rbox(48, 48, 36, 36, 9), H('#111521'));
-  for (const [rx, ry] of [[14, 14], [82, 14], [14, 82], [82, 82]]) {
-    c.outlined(circle(rx, ry, 4.2), H('#e8b84b'), 1.8);
+  c.fill(rbox(48, 52, 45, 43, 16), H('#05080e', 0.7));
+  const outer = rbox(48, 47, 45, 43, 15);
+  c.outlined(outer, vgrad(H('#3c4f73'), H('#1d283c'), 4, 90), 3, H('#0a0f18'));
+  c.stroke(rbox(48, 47, 42, 40, 13), vgrad(H('#ffd566'), H('#b87d26'), 6, 88), 3);
+  c.stroke(rbox(48, 47, 39, 37, 10), H('#784f14', 0.8), 1.5);
+  c.fill(rbox(48, 47, 36, 35, 8), vgrad(H('#1c283c'), H('#131c2b'), 12, 82));
+  for (const [rx, ry] of [[15, 14], [81, 14], [15, 80], [81, 80]]) {
+    c.fill(circle(rx, ry + 1.5, 4.5), H('#5a3a0e'));
+    c.outlined(circle(rx, ry, 4.2), vgrad(H('#fff199'), H('#d48b17'), ry - 4, ry + 4), 1.6, H('#422705'));
+    c.fill(circle(rx - 1, ry - 1, 1.3), H('#ffffff', 0.85));
   }
   c.save('panel_stone');
 }
-for (const [name, c1, c2, rim] of [
-  ['card_common', '#45506b', '#272e40', '#8b99b8'],
-  ['card_rare', '#634329', '#2b1f21', '#f09a36'],
-  ['card_epic', '#4e2c75', '#211638', '#d273ff'],
-  ['card_legendary', '#1d5a73', '#2d1c4a', '#52f0ff'],
+for (const [name, cTop, cBot, rimTop, rimBot, studCol] of [
+  ['card_common',    '#7184a3', '#324157', '#cbd7e8', '#889cb8', '#dce7f5'],
+  ['card_rare',      '#b86414', '#572704', '#fed777', '#d97706', '#ffe894'],
+  ['card_epic',      '#8b35dc', '#421175', '#f0abfc', '#a855f7', '#ffd644'],
+  ['card_legendary', '#0ea5e9', '#1e3a8a', '#7dd3fc', '#0284c7', '#52f0ff'],
 ]) {
   const c = canvas(96, 96);
-  c.outlined(rbox(48, 48, 44, 44, 14), vgrad(H(c1), H(c2), 6, 90), 3);
-  c.stroke(rbox(48, 48, 40, 40, 11), H(rim), 3.5);
-  c.fill(rbox(48, 48, 35, 35, 8), H('#151926', 0.85));
-  if (name === 'card_epic' || name === 'card_legendary') {
-    const stud = name === 'card_legendary' ? H('#52f0ff') : H('#ffd644');
-    for (const [rx, ry] of [[14, 14], [82, 14], [14, 82], [82, 82]]) c.fill(circle(rx, ry, 4.2), stud);
+  c.fill(rbox(48, 51, 44, 43, 15), H('#080c14', 0.6));
+  const outer = rbox(48, 47, 44, 43, 14);
+  c.outlined(outer, vgrad(H(cTop), H(cBot), 6, 88), 2.8, H('#0c121c'));
+  c.stroke(rbox(48, 47, 40, 39, 11), vgrad(H(rimTop), H(rimBot), 8, 86), 3.2);
+  c.fill(rbox(48, 47, 35, 34, 8), (x, y) => {
+    const d = len((x - 48) / 35, (y - 47) / 34);
+    const bg1 = H('#26354f'), bg2 = H('#182233');
+    const base = mix(bg1, bg2, clamp01((y - 12) / 72));
+    return mix(lighter(base, 0.18), base, clamp01(d));
+  });
+  if (name !== 'card_common') {
+    for (const [rx, ry] of [[15, 14], [81, 14], [15, 80], [81, 80]]) {
+      c.fill(circle(rx, ry + 1, 3.8), H('#1a1205', 0.7));
+      c.outlined(circle(rx, ry, 3.5), H(studCol), 1.2, H('#1a1205'));
+      c.fill(circle(rx - 0.8, ry - 0.8, 1.1), H('#ffffff', 0.9));
+    }
   }
   c.save(name);
 }
-for (const [name, top, bot, hi] of [
-  ['btn_gold', '#f2bd47', '#b56d1c', '#ffe89c'],
-  ['btn_purple', '#9d5ce6', '#56299e', '#d6b0ff'],
-  ['btn_crimson', '#e6485c', '#8c1c31', '#ff9aa8'],
-  ['btn_dark', '#35405e', '#20273b', '#5d6e99'],
+for (const [name, topGrad, botGrad, shadowBase, hiStroke] of [
+  ['btn_gold',    '#ffc72c', '#f57c00', '#9c4200', '#fff4b8'],
+  ['btn_green',   '#4ade80', '#16a34a', '#14532d', '#bbf7d0'],
+  ['btn_purple',  '#c084fc', '#7e22ce', '#4c1d95', '#f3e8ff'],
+  ['btn_crimson', '#f87171', '#dc2626', '#7f1d1d', '#fecaca'],
+  ['btn_dark',    '#475e82', '#22324a', '#121d2c', '#859ec4'],
 ]) {
   const c = canvas(96, 64);
-  c.fill(rbox(48, 35, 44, 25, 13), H('#090b12', 0.55));
-  const body = rbox(48, 31, 44, 24, 13);
-  c.outlined(body, vgrad(H(top), H(bot), 8, 54), 3);
-  c.stroke(rbox(48, 31, 41, 21, 11), H(hi, 0.45), 2);
-  c.fill(rbox(48, 15, 34, 4, 2), H(hi, 0.35));
+  c.fill(rbox(48, 38, 44, 23, 14), H('#060910', 0.65));
+  const baseBox = rbox(48, 35, 44, 23, 13);
+  c.outlined(baseBox, H(shadowBase), 2.5, H('#090d16'));
+  const faceBox = rbox(48, 29, 44, 21, 12);
+  c.outlined(faceBox, vgrad(H(topGrad), H(botGrad), 8, 48), 2.5, H('#090d16'));
+  c.stroke(rbox(48, 29, 41, 18, 10), H(hiStroke, 0.45), 1.8);
+  c.fill(rbox(48, 16, 34, 4.5, 3), [1, 1, 1, 0.38]);
   c.save(name);
 }
-{ // btn_round
+{ // btn_round (88x88) - Chunky tactile round button
   const c = canvas(88, 88);
-  c.fill(circle(44, 47, 38), H('#090b12', 0.55));
-  c.outlined(circle(44, 43, 37), vgrad(H('#435073'), H('#21283d'), 8, 78), 3);
-  c.stroke(circle(44, 43, 33), H('#8d9cc4', 0.5), 2);
+  c.fill(circle(44, 49, 39), H('#060910', 0.65));
+  c.outlined(circle(44, 46, 38), H('#162234'), 2.5, H('#080d15'));
+  c.outlined(circle(44, 42, 38), vgrad(H('#4b6387'), H('#25364f'), 6, 78), 2.5, H('#080d15'));
+  c.stroke(circle(44, 42, 34), H('#9ab5db', 0.45), 2);
+  c.fill(ellipse(44, 20, 20, 6), [1, 1, 1, 0.28]);
   c.save('btn_round');
 }
-{ // cell_bg (board tile slot)
+{ // cell_bg (128x128) - Carved stone socket / gem recess (Empires & Puzzles)
   const c = canvas(128, 128);
-  c.fill(rbox(64, 64, 59, 59, 16), vgrad(H('#1d2438'), H('#141928'), 6, 122));
-  c.stroke(rbox(64, 64, 57, 57, 15), H('#2d3854', 0.7), 2);
+  c.fill(rbox(64, 65, 60, 60, 16), H('#090d16', 0.7));
+  c.outlined(rbox(64, 64, 59, 59, 15), vgrad(H('#273854'), H('#182438'), 6, 122), 2.5, H('#0c131f'));
+  c.stroke(rbox(64, 64, 56, 56, 13), vgrad(H('#111826'), H('#56729f'), 8, 120), 2.5);
+  c.fill(rbox(64, 64, 53, 53, 11), vgrad(H('#121b2b'), H('#1d2b42'), 12, 116));
+  c.fill(ellipse(64, 26, 44, 14), H('#080c14', 0.55));
+  c.fill(circle(64, 66, 36), [1, 1, 1, 0.05]);
   c.save('cell_bg');
 }
-{ // bar_bg & bar_fill & square & FX
+{ // bar_bg & bar_fill & square & FX - Glossy 3D capsule meters
   const c1 = canvas(64, 28);
-  c1.outlined(rbox(32, 14, 29, 11, 7), H('#101420'), 2);
-  c1.stroke(rbox(32, 14, 27, 9, 6), H('#384463'), 1.5);
+  c1.fill(rbox(32, 16, 30, 12, 8), H('#080d16', 0.6));
+  c1.outlined(rbox(32, 14, 29, 11, 7), vgrad(H('#121b29'), H('#1a2638'), 4, 24), 2, H('#090e18'));
+  c1.stroke(rbox(32, 14, 27, 9, 6), vgrad(H('#090e17'), H('#3a4e70'), 4, 24), 1.5);
   c1.save('bar_bg');
 
   const c2 = canvas(64, 28);
-  c2.fill(rbox(32, 14, 27, 9, 5), vgrad(H('#ffffff'), H('#cccccc'), 4, 24));
+  c2.fill(rbox(32, 14, 27, 9, 5), vgrad(H('#ffffff'), H('#b8c2cc'), 4, 24));
+  c2.fill(rbox(32, 8, 25, 3, 2), [1, 1, 1, 0.45]);
+  c2.fill(rbox(32, 21, 26, 2, 1.5), [0, 0, 0, 0.25]);
   c2.save('bar_fill');
 
   const sq = canvas(16, 16);
@@ -841,13 +869,14 @@ function drawWolf(c, cx, cy, s) {
   p.outlined(poly([[22, 14], [50, 32], [22, 50]], 4), H('#f3eee6'), 3);
   p.save('icon_play');
 }
-{ // node_stage (campaign medallion, neutral stone + gold rim) 96x96
+{ // node_stage (campaign medallion, royal stone + gold rim) 96x96
   const c = canvas(96, 96);
-  c.fill(circle(48, 52, 40), H('#05070c', 0.55));
-  c.outlined(circle(48, 47, 39), vgrad(H('#e8b84b'), H('#8a5a20'), 10, 86), 3);
-  c.fill(circle(48, 47, 31), vgrad(H('#3a4566'), H('#1b2133'), 18, 78));
-  c.stroke(circle(48, 47, 31), H('#0c0f18', 0.8), 2);
-  c.fill(ellipse(40, 32, 14, 6), [1, 1, 1, 0.12]);
+  c.fill(circle(48, 53, 41), H('#05080e', 0.65));
+  c.outlined(circle(48, 47, 40), vgrad(H('#ffd866'), H('#b87820'), 8, 86), 3, H('#241503'));
+  c.stroke(circle(48, 47, 36), H('#fff29e', 0.5), 1.5);
+  c.fill(circle(48, 47, 32), vgrad(H('#40577d'), H('#1e2a3f'), 16, 78));
+  c.stroke(circle(48, 47, 32), H('#0d1522', 0.8), 2);
+  c.fill(ellipse(44, 30, 16, 7), [1, 1, 1, 0.22]);
   c.save('node_stage');
 }
 { // path_dot 24x24
@@ -864,12 +893,12 @@ function drawWolf(c, cx, cy, s) {
   }, (x, y) => [1, 1, 1, clamp01(1 - len(x - 128, y - 128) / 126) * 0.9]);
   c.save('rays');
 }
-{ // vignette 128x128 (transparent center -> dark edges), stretched over screens
+{ // vignette 128x128 (transparent center -> rich royal navy edges), stretched over screens
   const c = canvas(128, 128);
   c.fill((x, y) => -1, (x, y) => {
     const d = len((x - 64) / 64, (y - 64) / 64);
-    const t = clamp01((d - 0.55) / 0.85);
-    return [0.02, 0.03, 0.06, t * t * 0.95];
+    const t = clamp01((d - 0.52) / 0.85);
+    return [0.06, 0.09, 0.16, t * t * 0.85];
   });
   c.save('vignette');
 }
@@ -892,9 +921,10 @@ function drawWolf(c, cx, cy, s) {
 }
 { // tab_active (nav highlight, slice-9)
   const t = canvas(96, 96);
-  t.outlined(rbox(48, 48, 44, 44, 18), vgrad(H('#3b4766'), H('#232a40'), 6, 90), 3);
-  t.stroke(rbox(48, 48, 40, 40, 15), H('#e8b84b', 0.9), 3);
-  t.fill(rbox(48, 22, 30, 6, 4), H('#ffffff', 0.12));
+  t.fill(rbox(48, 51, 44, 43, 17), H('#070b13', 0.55));
+  t.outlined(rbox(48, 47, 44, 43, 16), vgrad(H('#4b6387'), H('#24334a'), 6, 88), 2.8, H('#0c131f'));
+  t.stroke(rbox(48, 47, 41, 40, 14), vgrad(H('#ffd25e'), H('#c48220'), 8, 86), 2.5);
+  t.fill(rbox(48, 20, 32, 5, 3), [1, 1, 1, 0.25]);
   t.save('tab_active');
 }
 { // icon_skull (fallen squad)

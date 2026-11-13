@@ -32,6 +32,10 @@ function M.card_tile(parent, sq, x, y, w, h, opts)
 	if opts.on_tap then ui.button(card, opts.on_tap) end
 
 	local art_size = math.min(w - 22, ch - 44)
+	if unlocked then
+		local col = ui.GEM_COLOR[sq.color] or ui.WHITE
+		ui.box(card, "glow", 0, 8, art_size * 1.15, art_size * 1.15, V4(col.x, col.y, col.z, 0.2))
+	end
 	local art = ui.icon(card, sq.sprite, 0, 8, art_size, unlocked and ui.WHITE or V4(0.08, 0.09, 0.14, 0.9))
 	if unlocked then ui.bob(art, 3, 1.3, math.random() * 0.6) end
 	ui.box(card, ui.GEM_SPRITE[sq.color], -w / 2 + 20, ch / 2 - 20, 28, 28)
