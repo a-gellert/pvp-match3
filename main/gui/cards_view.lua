@@ -94,7 +94,7 @@ local function deck(app, parent, cx, top, w, card_w)
 		local x = cx + (i - 2) * (card_w + gap)
 		widgets.card_tile(parent, sq, x, top - 66 - card_h / 2, card_w, card_h, {
 			deck = true,
-			tut = d.onboarding_step == 1 and sq.id == "red_militia",
+			tut = (d.onboarding_step == 1 or d.onboarding_step == 2) and sq.id == "red_militia" and not d.onboarding_done,
 			on_tap = function() open_card(app, sq.id) end,
 		})
 	end
@@ -163,7 +163,7 @@ function M.build(app, parent, R)
 		sc.set_height(h + ch + 60)
 	end
 
-	if d.onboarding_step == 1 then
+	if (d.onboarding_step == 1 or d.onboarding_step == 2) and not d.onboarding_done then
 		local hw = math.min(R.w - 40, 560)
 		local hint = ui.slice(parent, "btn_gold", R.cx, R.y0 + 34, hw, 52, ui.WHITE, 16)
 		ui.label(hint, i18n.t("TUT_UPGRADE"), 0, 2, 21, ui.INK, hw - 30)

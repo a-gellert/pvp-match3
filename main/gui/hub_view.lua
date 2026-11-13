@@ -101,7 +101,7 @@ local function nav_bar(app, cx0, cx1, h)
 			local bd = ui.badge(hit, isz / 2 + 4, isz / 2, cnt, 30)
 			gui.set_inherit_alpha(bd, false)
 		end
-		if tab.id == "cards" and not active and progress.data.onboarding_step == 1 then
+		if tab.id == "cards" and not active and progress.data.onboarding_step == 2 then
 			local hand = ui.box(holder, "icon_hand", 24, 34, 52, 52)
 			ui.pulse(hand, 1.18, 0.45)
 		end
@@ -186,29 +186,95 @@ local function showcase(app, parent, cx, cy, w, h)
 	ui.text(strip, i18n.t("MOVES_FMT", { n = d.max_moves }), 90, 2, 19, ui.BONE)
 end
 
+local function chapter_bar(app, parent, cx, y, w, h)
+	local d = progress.data
+	local stage_n = math.min(campaign.COUNT, d.max_stage_unlocked or 1)
+	local biome_idx = math.min(#campaign.BIOMES, math.floor((stage_n - 1) / campaign.STAGES_PER_BIOME) + 1)
+	local bm = campaign.BIOMES[biome_idx]
+	local boss_stage_n = biome_idx * campaign.STAGES_PER_BIOME
+	local boss_stg = campaign.get_stage(boss_stage_n)
+	local to_boss = boss_stage_n - stage_n
+	local is_boss = to_boss <= 0
+
+	local box = ui.slice(parent, is_boss and "card_epic" or "panel_stone", cx, y, w, h, ui.WHITE, 16)
+	local ic = ui.icon(box, is_boss and boss_stg.face or "icon_map", -w / 2 + 36, 0, 48)
+	if is_boss then ui.pulse(ic, 1.12, 0.4) end
+
+	local tx = -w / 2 + 68
+	local tw = w - 80
+	local title = i18n.t("CHAPTER_FMT", { n = biome_idx, name = i18n.t(bm.name_key) })
+	ui.label(box, title, tx, 12, 17, is_boss and ui.RED or ui.GOLD, tw, { pivot = gui.PIVOT_W })
+
+	local sub = is_boss and i18n.t("BOSS_READY") or i18n.t("TO_BOSS_FMT", { n = to_boss })
+	ui.label(box, sub, tx, -12, 15, is_boss and ui.GOLD or ui.BONE, tw, { pivot = gui.PIVOT_W })
+
+	ui.button(box, function()
+		if not d.onboarding_done then return end
+		app.open_popup("stage", { id = stage_n })
+	end)
+end
+
+local function star_chest_bar(app, parent, cx, y, w, h)
+	local have, need = progress.star_chest_progress()
+	local ready = progress.star_chest_ready()
+	local base = need - config.STAR_CHEST_EVERY
+	local cur_have = math.min(config.STAR_CHEST_EVERY, math.max(0, have - base))
+	local cur_need = config.STAR_CHEST_EVERY
+	local rarity = ((progress.data.star_chests or 0) + 1) % 3 == 0 and "royal" or "silver"
+
+	local box = ui.slice(parent, ready and "card_rare" or "panel_stone", cx, y, w, h, ui.WHITE, 16)
+	if ready then
+		local rays = ui.glow(ui.box(box, "rays", 0, 0, h * 1.8, h * 1.8, V4(1, 0.85, 0.4, 0.35)))
+		ui.spin(rays, 8)
+	end
+
+	local sic = ui.box(box, "icon_star", -w / 2 + 28, 0, 38, 38)
+	if ready then ui.bob(sic, 4, 0.4) end
+
+	local bar_w = w - 124
+	local bar_x = -w / 2 + 52 + bar_w / 2
+	local txt = ready and i18n.t("STAR_CHEST_READY") or (cur_have .. " / " .. cur_need)
+	ui.bar(box, bar_x, 0, bar_w, 28, math.min(1, cur_have / cur_need), ui.YELLOW, { text = txt, text_size = 15, text_color = ready and ui.INK or ui.WHITE })
+
+	local cic = ui.icon(box, config.CHESTS[rarity].sprite, w / 2 - 32, 0, 48)
+	if ready then ui.pulse(cic, 1.15, 0.38) end
+
+	ui.button(box, function()
+		if ready then
+			local res = progress.claim_star_chest()
+			if res then app.open_popup("chest", res) end
+		else
+			ui.float_text(st.fx, i18n.t("STARS_NEED", { n = cur_need - cur_have }), cx, y + h / 2, 20, ui.DIM, 30)
+		end
+	end)
+end
+
 local function build_home(app, parent, R)
 	local d = progress.data
 	local land = app.orient == "landscape"
 	local stage_n = math.min(campaign.COUNT, d.max_stage_unlocked or 1)
-	local function battle_buttons(cx, y, w, side_by_side)
-		local bw = side_by_side and (w - 16) / 2 or w
-		local pvp_x = side_by_side and (cx - bw / 2 - 8) or cx
-		local camp_x = side_by_side and (cx + bw / 2 + 8) or cx
-		local pvp_y = y
-		local camp_y = side_by_side and y or (y - 104)
-		ui.btn(parent, "btn_gold", pvp_x, pvp_y, bw, 116, i18n.t("BATTLE"), 40, function() app.start_pvp_search() end,
-			{ icon = "icon_pvp", icon_size = 70, pulse = true })
+	local function battle_buttons(cx, y, w)
+		local bw = (w - 14) / 2
+		local pvp_x = cx - bw / 2 - 7
+		local camp_x = cx + bw / 2 + 7
+		ui.btn(parent, "btn_gold", pvp_x, y, bw, 108, i18n.t("BATTLE"), 34, function() app.start_pvp_search() end,
+			{ icon = "icon_pvp", icon_size = 64, pulse = true })
 		if (d.streak or 0) >= 2 then
-			local fl = ui.box(parent, "icon_fire", pvp_x + bw / 2 - 30, pvp_y + 46, 52, 52)
+			local fl = ui.box(parent, "icon_fire", pvp_x + bw / 2 - 28, y + 42, 48, 48)
 			ui.pulse(fl, 1.15, 0.35)
-			ui.text(parent, "x" .. d.streak, pvp_x + bw / 2 - 30, pvp_y + 30, 20, ui.WHITE)
+			ui.text(parent, "x" .. d.streak, pvp_x + bw / 2 - 28, y + 28, 18, ui.WHITE)
 		end
 		local stg = campaign.get_stage(stage_n)
-		local cn = ui.btn(parent, stg.boss and "btn_crimson" or "btn_purple", camp_x, camp_y, bw, side_by_side and 116 or 88,
-			i18n.t("CAMPAIGN_NEXT", { n = stage_n }), side_by_side and 30 or 26, function()
+		local cn = ui.btn(parent, stg.boss and "btn_crimson" or "btn_purple", camp_x, y, bw, 108,
+			i18n.t("CAMPAIGN_NEXT", { n = stage_n }), 26, function()
 				app.open_popup("stage", { id = stage_n })
-			end, { icon = stg.face, icon_size = side_by_side and 76 or 62 })
+			end, { icon = stg.face, icon_size = 64 })
 		if not d.onboarding_done then gui.set_enabled(cn, false) end
+		if (d.streak or 0) >= 2 then
+			local fl2 = ui.box(parent, "icon_fire", camp_x + bw / 2 - 28, y + 42, 48, 48)
+			ui.pulse(fl2, 1.15, 0.35)
+			ui.text(parent, "x" .. d.streak, camp_x + bw / 2 - 28, y + 28, 18, ui.WHITE)
+		end
 	end
 
 	if land then
@@ -217,9 +283,14 @@ local function build_home(app, parent, R)
 		local rcx, rw = (split + R.x1) / 2, R.x1 - split - 12
 		league_banner(app, parent, lcx, R.y1 - 56, lw)
 		local btn_y = R.y0 + 64
-		local sc_top, sc_bot = R.y1 - 118, btn_y + 74
+		local bar_y = btn_y + 54 + 44
+		local hw = (lw - 14) / 2
+		chapter_bar(app, parent, lcx - hw / 2 - 7, bar_y, hw, 72)
+		star_chest_bar(app, parent, lcx + hw / 2 + 7, bar_y, hw, 72)
+		battle_buttons(lcx, btn_y, lw)
+		local sc_top = R.y1 - 118
+		local sc_bot = bar_y + 44
 		showcase(app, parent, lcx, (sc_top + sc_bot) / 2, lw, sc_top - sc_bot)
-		battle_buttons(lcx, btn_y, lw, true)
 		-- Right column: gift + daily, then chests 2x2
 		local tile_h = 150
 		local ty = R.y1 - tile_h / 2 - 4
@@ -240,15 +311,19 @@ local function build_home(app, parent, R)
 		league_banner(app, parent, cx, R.y1 - 58, w)
 		local chest_h = 176
 		local chest_y = R.y0 + chest_h / 2 + 2
-		local btns_y = chest_y + chest_h / 2 + 40 + 104 + 58
+		local btns_y = chest_y + chest_h / 2 + 70
+		local bar_y = btns_y + 54 + 44
+		local hw = (w - 14) / 2
+		chapter_bar(app, parent, cx - hw / 2 - 7, bar_y, hw, 74)
+		star_chest_bar(app, parent, cx + hw / 2 + 7, bar_y, hw, 74)
+		battle_buttons(cx, btns_y, w)
 		local sc_top = R.y1 - 122
-		local sc_bot = btns_y + 72
-		local sc_h = math.max(220, sc_top - sc_bot)
+		local sc_bot = bar_y + 44
+		local sc_h = math.max(200, sc_top - sc_bot)
 		local tile_w = 112
 		showcase(app, parent, cx, sc_bot + sc_h / 2, w - (tile_w * 2 + 20), sc_h)
 		free_gift_tile(app, parent, cx - w / 2 + tile_w / 2, sc_bot + sc_h - 80, tile_w, 150)
 		daily_tile(app, parent, cx + w / 2 - tile_w / 2, sc_bot + sc_h - 80, tile_w, 150)
-		battle_buttons(cx, btns_y, math.min(w - 40, 520), false)
 		local cw = (w - 30) / 4
 		for i = 1, 4 do
 			local tn = widgets.chest_slot(parent, app, i, cx - w / 2 + cw / 2 + 6 + (i - 1) * (cw + 6), chest_y, cw, chest_h)

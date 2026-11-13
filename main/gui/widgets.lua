@@ -136,6 +136,10 @@ function M.chest_slot(parent, app, i, x, y, w, h)
 		local b = ui.slice(box, "btn_gold", 0, -h / 2 + 24, w - 16, 38, ui.WHITE, 14)
 		ui.label(b, i18n.t("READY"), 0, 3, 17, ui.WHITE, w - 30)
 		ui.pulse(b, 1.06, 0.4)
+		if i == 1 and d.onboarding_step == 1 then
+			local hand = ui.box(box, "icon_hand", 0, 24, 54, 54)
+			ui.pulse(hand, 1.22, 0.4)
+		end
 	elseif slot.unlocking then
 		timer_node = ui.text(box, i18n.fmt_time(rem), 0, -h / 2 + 46, 17, ui.GOLD)
 		local cost = progress.chest_rush_cost(i)

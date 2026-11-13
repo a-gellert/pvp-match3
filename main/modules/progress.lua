@@ -221,8 +221,8 @@ function M.upgrade_card(id)
 	M.data.commander_lvl = M.data.commander_lvl + 1
 	M.data.stats.upgrades = (M.data.stats.upgrades or 0) + 1
 	quests.on_event(M.data, "upgrades", 1)
-	if M.data.onboarding_step == 1 then
-		M.data.onboarding_step = 2
+	if M.data.onboarding_step and M.data.onboarding_step >= 1 then
+		M.data.onboarding_step = 3
 		M.data.onboarding_done = true
 	end
 	M.save()
@@ -412,6 +412,10 @@ function M.open_chest(slot, rush_diamonds)
 		M.data.diamonds = M.data.diamonds - cost
 	end
 	M.data.chests[slot] = nil
+	if M.data.onboarding_step == 1 then
+		M.data.onboarding_step = 2
+		M.save()
+	end
 	return M.roll_chest(ch.rarity, quests.now() + slot * 97 + (M.data.gold or 0))
 end
 

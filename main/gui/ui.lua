@@ -319,7 +319,7 @@ function M.bar(parent, x, y, w, h, ratio, color, opts)
 	r.prog = M.druid:new_progress(f, "x", ratio)
 	if opts.text then
 		local ts = opts.text_size or math.max(14, h - 6)
-		r.label = M.text(bg, opts.text, 0, 1, ts, M.WHITE)
+		r.label = M.text(bg, opts.text, 0, 1, ts, opts.text_color or M.WHITE)
 		M.fit(r.label, w - 10, ts)
 	end
 	function r.to(value, instant)

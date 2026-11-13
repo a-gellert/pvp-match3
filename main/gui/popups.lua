@@ -67,7 +67,7 @@ end
 -- ---------------------------------------------------------------- win / lose
 B.win = function(app, root, data)
 	local s = app.session
-	local p, w, h = panel(root, app, 600, 760, i18n.t("VICTORY"))
+	local p, w, h = panel(root, app, 600, 810, i18n.t("VICTORY"))
 	local rays = ui.glow(ui.box(p, "rays", 0, h / 2 - 150, 520, 520, V4(1, 0.85, 0.45, 0.35)))
 	ui.spin(rays, 12)
 	ui.confetti(app.popup_root, app.vw / 2, app.vh + 40, app.vw, 50)
@@ -104,9 +104,26 @@ B.win = function(app, root, data)
 	ui.text(p, (dp >= 0 and "+" or "") .. dp, 150, y, 34, ui.PRESTIGE)
 	y = y - 66
 	if (data.streak_bonus or 0) > 0 then
-		ui.box(p, "icon_fire", -140, y, 40, 40)
+		local fl = ui.box(p, "icon_fire", -140, y, 42, 42)
+		ui.pulse(fl, 1.15, 0.35)
 		ui.label(p, i18n.t("STREAK_BONUS", { n = data.streak, g = data.streak_bonus }), 20, y, 20, ui.GOLD, w - 200)
 		y = y - 46
+	end
+	if data.stars then
+		local have, need = progress.star_chest_progress()
+		local base = need - config.STAR_CHEST_EVERY
+		local cur_have = math.min(config.STAR_CHEST_EVERY, math.max(0, have - base))
+		local cur_need = config.STAR_CHEST_EVERY
+		local ready = progress.star_chest_ready()
+		local sc_b = ui.slice(p, ready and "card_rare" or "panel_dark", 0, y - 24, w - 80, 52, ui.WHITE, 14)
+		ui.box(sc_b, "icon_star", -(w - 80) / 2 + 28, 0, 34, 34)
+		local bar_w = w - 230
+		local txt = ready and i18n.t("STAR_CHEST_READY") or (i18n.t("STAR_CHEST") .. ": " .. cur_have .. " / " .. cur_need)
+		ui.bar(sc_b, -(w - 80) / 2 + 52 + bar_w / 2, 0, bar_w, 26, math.min(1, cur_have / cur_need), ui.YELLOW, { text = txt, text_size = 15, text_color = ready and ui.INK or ui.WHITE })
+		local rarity = ((progress.data.star_chests or 0) + 1) % 3 == 0 and "royal" or "silver"
+		local sc_ic = ui.icon(sc_b, config.CHESTS[rarity].sprite, (w - 80) / 2 - 28, 0, 42)
+		if ready then ui.pulse(sc_ic, 1.15, 0.35) end
+		y = y - 60
 	end
 	if data.chest_rarity then
 		local cb = ui.slice(p, "panel_dark", 0, y - 34, w - 80, 96, ui.WHITE, 16)
@@ -453,7 +470,7 @@ B.card = function(app, root, data)
 			end, { icon = "icon_gold", icon_size = 32 })
 			if can then
 				ui.pulse(nb, 1.05, 0.45)
-				if d.onboarding_step == 1 then
+				if (d.onboarding_step == 1 or d.onboarding_step == 2) and not d.onboarding_done then
 					local hand = ui.box(p, "icon_hand", col_cx + half / 2 + 40, by - 30, 64, 64)
 					ui.pulse(hand, 1.2, 0.4)
 				end
