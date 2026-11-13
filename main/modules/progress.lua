@@ -52,6 +52,7 @@ local function default_data()
 		stats = { battles = 0, wins = 0, pvp_wins = 0, chests = 0, chests_earned = 0, upgrades = 0 },
 		login = { last_day = 0, count = 0 },
 		daily = nil,
+		trial = { won_day = 0, streak = 0, best = 0 }, -- Daily Trial: day id of the last win, days in a row
 	}
 end
 
@@ -561,7 +562,22 @@ function M.apply_battle_result(opts)
 	local gold = won and base_gold or math.floor(base_gold * 0.25)
 	local streak_bonus = 0
 	local d_pres = 0
-	if won then
+	local trial_res = nil
+	if opts.is_trial then
+		-- Daily Trial: no prestige change; a win pays diamonds + a chest once per day.
+		if won and M.trial_available() then
+			local t = d.trial
+			t.streak = (t.won_day == quests.yesterday()) and (t.streak or 0) + 1 or 1
+			t.best = math.max(t.best or 0, t.streak)
+			t.won_day = quests.today()
+			local dia = (opts.diamonds or 10) + math.min(t.streak - 1, 6) * 2
+			d.diamonds = d.diamonds + dia
+			trial_res = { diamonds = dia, streak = t.streak }
+			opts.chest = (t.streak % 3 == 0) and "royal" or "silver"
+		elseif won then
+			opts.chest = "wood"
+		end
+	elseif won then
 		d_pres = is_pvp and config.PVP_PRESTIGE_WIN or config.PRESTIGE_WIN
 		if is_pvp then
 			d.streak = math.min(config.STREAK_MAX, (d.streak or 0) + 1)
@@ -569,7 +585,7 @@ function M.apply_battle_result(opts)
 			streak_bonus = math.floor(base_gold * config.STREAK_GOLD_BONUS * (d.streak - 1) + 0.5)
 			gold = gold + streak_bonus
 		end
-	else
+	elseif not won then
 		d_pres = -(is_pvp and config.PVP_PRESTIGE_LOSE or config.PRESTIGE_LOSE)
 		if is_pvp then d.streak = 0 end
 	end
@@ -644,8 +660,31 @@ function M.apply_battle_result(opts)
 		new_stars = new_stars,
 		first_clear = first_clear,
 		is_pvp = is_pvp,
+		is_trial = opts.is_trial,
+		trial = trial_res,
 		stage_id = opts.stage_id,
 	}
+end
+
+-- ---------------------------------------------------------------- daily trial
+function M.trial_unlocked()
+	return M.data.onboarding_done == true
+end
+
+-- Today's trial reward is still available.
+function M.trial_available()
+	return M.trial_unlocked() and (M.data.trial.won_day or 0) ~= quests.today()
+end
+
+-- Current streak as shown in the UI (drops to 0 once a day was missed).
+function M.trial_streak()
+	local t = M.data.trial
+	if t.won_day == quests.today() or t.won_day == quests.yesterday() then return t.streak or 0 end
+	return 0
+end
+
+function M.trial_boss()
+	return campaign.trial_boss(quests.today(), M.data.max_stage_unlocked or 1, M.player_power())
 end
 
 -- ---------------------------------------------------------------- badges (red dots)
@@ -665,6 +704,7 @@ function M.badges()
 	end
 	if M.free_chest_remaining() <= 0 then b.home = b.home + 1 end
 	if M.road_claimable() then b.home = b.home + 1 end
+	if M.trial_available() then b.home = b.home + 1 end
 	return b
 end
 

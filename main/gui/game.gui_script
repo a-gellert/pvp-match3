@@ -229,6 +229,36 @@ function app.launch_pvp(opp)
 	if config.VIDEO_MODE then go() else poki.commercial_break((d.stats.battles or 0) + 1, go) end
 end
 
+-- Daily Trial: today's boss (see campaign.trial_boss); retries are free, the reward is once a day.
+function app.start_trial()
+	local d = progress.data
+	local boss = progress.trial_boss()
+	local function go()
+		app.last_fight = { mode = "trial", opp = boss }
+		app.session = battle.new(battle_opts({
+			mode = "trial",
+			stage_id = 0,
+			arena = boss.arena,
+			board_cfg = boss.board_cfg,
+			seed = os.time() + 777,
+			enemy_name_key = boss.name_key,
+			enemy_face = boss.face,
+			enemy_hp = boss.hp,
+			enemy_moves = boss.moves,
+			enemy_diff = boss.diff,
+			enemy_squads = boss.squads,
+			tint = campaign.BIOMES[boss.biome].tint,
+		}))
+		app.screen = "battle"
+		app.popup = nil
+		app.queue = {}
+		app.paused_gameplay = nil
+		app.rebuild(true)
+		poki.measure("battle", "trial", "start")
+	end
+	if config.VIDEO_MODE then go() else poki.commercial_break((d.stats.battles or 0) + 1, go) end
+end
+
 -- ---------------------------------------------------------------- battle results
 local function persist_boosters(s)
 	for k, v in pairs(s.boosters) do progress.data.boosters[k] = v end
@@ -241,6 +271,8 @@ local function result_opts(won)
 	return {
 		won = won,
 		is_pvp = s.mode == "pvp",
+		is_trial = s.mode == "trial",
+		diamonds = stg and stg.diamonds,
 		stage_id = s.mode == "campaign" and s.stage_id or nil,
 		gold = stg and stg.gold or 45,
 		chest = stg and stg.chest or "wood",
@@ -269,7 +301,7 @@ function app.on_battle_end(won)
 		poki.measure("battle", s.mode, "lose")
 		app.open_popup("lose", {
 			gold = math.floor(opts.gold * 0.25),
-			prestige_delta = -(is_pvp and config.PVP_PRESTIGE_LOSE or config.PRESTIGE_LOSE),
+			prestige_delta = opts.is_trial and 0 or -(is_pvp and config.PVP_PRESTIGE_LOSE or config.PRESTIGE_LOSE),
 			can_revive = not s.revived,
 		})
 	end
@@ -294,6 +326,8 @@ function app.retry_battle()
 	if not app.last_fight then app.show_hub(); return end
 	if app.last_fight.mode == "pvp" then
 		app.start_pvp_search()
+	elseif app.last_fight.mode == "trial" then
+		app.start_trial()
 	else
 		app.start_campaign(app.last_fight.stage_id)
 	end
@@ -387,6 +421,11 @@ local function debug_setup(ds)
 		app.start_campaign(7, true)
 		app.open_popup("win", { won = true, gold = 124, prestige_delta = 25, chest_rarity = "silver", chest_slot = 4, stars = 3, new_stars = 3, stage_id = 7, stats = app.session.stats })
 	elseif ds == "daily" then app.show_hub("home")
+	elseif ds == "trial" then app.show_hub("home"); app.open_popup("trial")
+	elseif ds == "trial_battle" then app.start_trial()
+	elseif ds == "trial_win" then
+		app.start_trial()
+		app.open_popup("win", { won = true, gold = 290, is_trial = true, trial = { diamonds = 12, streak = 2 }, chest_rarity = "silver", chest_slot = 4, stats = app.session.stats })
 	elseif ds == "road" then app.show_hub("home"); app.open_popup("road")
 	elseif ds == "stage" then app.show_hub("map"); app.open_popup("stage", { id = 9 })
 	elseif ds == "sim" then

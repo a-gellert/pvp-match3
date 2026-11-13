@@ -218,4 +218,45 @@ function M.pvp_opponent(prestige, seed, player_power)
 	}
 end
 
+-- Daily Trial: one boss of an already reached biome per calendar day, rotating by day id.
+-- Its strength blends the campaign curve with the player's build (like PvP bots), a bit
+-- tougher than a PvP bot, so it stays a fair "boss of the day" at any progress level.
+function M.trial_boss(day, max_unlocked, player_power)
+	local r = rng.new((day or 1) * 4721 + 3)
+	local reached = math.max(1, math.min(#M.BIOMES, math.ceil((max_unlocked or 1) / M.STAGES_PER_BIOME)))
+	local biome_i = (day or 1) % reached + 1
+	local boss = M.get_stage(biome_i * M.STAGES_PER_BIOME)
+	local eq = math.max(3, math.min(M.COUNT, max_unlocked or 1))
+	local lvl, moves, hp = M.expected_build(eq)
+	hp = hp * M.HP_K
+	if player_power then
+		hp = (hp + player_power.hp) / 2
+		moves = (moves + player_power.moves) / 2
+		lvl = (lvl + player_power.avg_lvl) / 2
+	end
+	hp = math.floor(hp * (1.0 + r:float() * 0.1) + 0.5)
+	moves = math.max(1, math.min(6, math.floor(moves + 0.5)))
+	lvl = math.max(1, math.min(9, math.floor(lvl + 0.5)))
+	local sq = {}
+	for _, col in ipairs(config.ATTACK_COLORS) do
+		local id = boss.squads[col].id
+		sq[col] = { id = id, lvl = M.level_for_power(id, col, lvl) }
+	end
+	return {
+		is_trial = true,
+		biome = biome_i,
+		name_key = boss.name_key,
+		face = boss.face,
+		hp = hp,
+		moves = moves,
+		diff = math.max(2, boss.diff),
+		gold = 80 + eq * 14,
+		diamonds = 10,
+		chest = "silver",
+		squads = sq,
+		arena = M.BIOMES[biome_i].arena,
+		board_cfg = boss.board_cfg,
+	}
+end
+
 return M

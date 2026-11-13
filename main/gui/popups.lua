@@ -67,7 +67,13 @@ end
 -- ---------------------------------------------------------------- win / lose
 B.win = function(app, root, data)
 	local s = app.session
-	local p, w, h = panel(root, app, 600, 810, i18n.t("VICTORY"))
+	-- Fit the panel to its content: header + stars + rewards + optional rows + button block.
+	local need_h = 120 + 130 + 66 + 218
+		+ (((data.streak_bonus or 0) > 0 or data.trial) and 46 or 0)
+		+ (data.stars and 60 or 0)
+		+ (data.chest_rarity and 110 or 0)
+		+ (data.stats and 40 or 0)
+	local p, w, h = panel(root, app, 600, math.max(620, need_h), i18n.t("VICTORY"))
 	local rays = ui.glow(ui.box(p, "rays", 0, h / 2 - 150, 520, 520, V4(1, 0.85, 0.45, 0.35)))
 	ui.spin(rays, 12)
 	ui.confetti(app.popup_root, app.vw / 2, app.vh + 40, app.vw, 50)
@@ -99,11 +105,21 @@ B.win = function(app, root, data)
 	local gold_lbl = ui.text(p, "+0", -80, y, 34, ui.GOLD)
 	ui.box(p, "icon_gold", -160, y, 54, 54)
 	ui.count_up(gold_lbl, 0, data.gold or 0, 0.8, function(v) return "+" .. v end)
-	ui.box(p, "icon_prestige", 80, y, 54, 54)
-	local dp = data.prestige_delta or 0
-	ui.text(p, (dp >= 0 and "+" or "") .. dp, 150, y, 34, ui.PRESTIGE)
+	if data.is_trial then
+		ui.box(p, "icon_diamond", 80, y, 54, 54)
+		ui.text(p, "+" .. (data.trial and data.trial.diamonds or 0), 150, y, 34, ui.DIAMOND)
+	else
+		ui.box(p, "icon_prestige", 80, y, 54, 54)
+		local dp = data.prestige_delta or 0
+		ui.text(p, (dp >= 0 and "+" or "") .. dp, 150, y, 34, ui.PRESTIGE)
+	end
 	y = y - 66
-	if (data.streak_bonus or 0) > 0 then
+	if data.trial then
+		local fl = ui.box(p, "icon_fire", -150, y, 42, 42)
+		ui.pulse(fl, 1.15, 0.35)
+		ui.label(p, i18n.t("TRIAL_STREAK", { n = data.trial.streak }), 20, y, 20, ui.GOLD, w - 200)
+		y = y - 46
+	elseif (data.streak_bonus or 0) > 0 then
 		local fl = ui.box(p, "icon_fire", -140, y, 42, 42)
 		ui.pulse(fl, 1.15, 0.35)
 		ui.label(p, i18n.t("STREAK_BONUS", { n = data.streak, g = data.streak_bonus }), 20, y, 20, ui.GOLD, w - 200)
@@ -119,7 +135,7 @@ B.win = function(app, root, data)
 		ui.box(sc_b, "icon_star", -(w - 80) / 2 + 28, 0, 34, 34)
 		local bar_w = w - 230
 		local txt = ready and i18n.t("STAR_CHEST_READY") or (i18n.t("STAR_CHEST") .. ": " .. cur_have .. " / " .. cur_need)
-		ui.bar(sc_b, -(w - 80) / 2 + 52 + bar_w / 2, 0, bar_w, 26, math.min(1, cur_have / cur_need), ui.YELLOW, { text = txt, text_size = 15, text_color = ready and ui.INK or ui.WHITE })
+		ui.bar(sc_b, -(w - 80) / 2 + 52 + bar_w / 2, 0, bar_w, 26, math.min(1, cur_have / cur_need), ui.YELLOW, { text = txt, text_size = 15, text_color = ui.WHITE })
 		local rarity = ((progress.data.star_chests or 0) + 1) % 3 == 0 and "royal" or "silver"
 		local sc_ic = ui.icon(sc_b, config.CHESTS[rarity].sprite, (w - 80) / 2 - 28, 0, 42)
 		if ready then ui.pulse(sc_ic, 1.15, 0.35) end
@@ -532,7 +548,7 @@ end
 B.stage = function(app, root, data)
 	local stg = campaign.get_stage(data.id)
 	local biome = campaign.BIOMES[stg.zone]
-	local p, w, h = panel(root, app, 600, 800, i18n.t("STAGE_FMT", { n = stg.id }))
+	local p, w, h = panel(root, app, 600, 740, i18n.t("STAGE_FMT", { n = stg.id }))
 	close_btn(app, p, w, h)
 	local top = h / 2 - 70
 	ui.label(p, i18n.t(biome.name_key), 0, top - 10, 20, ui.hex(biome.tint), w - 80)
@@ -578,6 +594,49 @@ B.stage = function(app, root, data)
 	ui.btn(p, stg.boss and "btn_crimson" or "btn_gold", 0, -h / 2 + 60, w - 140, 84, i18n.t("FIGHT"), 32, function()
 		app.close_popup(true)
 		app.start_campaign(stg.id)
+	end, { icon = "icon_pvp", icon_size = 48, pulse = true })
+end
+
+-- ---------------------------------------------------------------- daily trial
+B.trial = function(app, root)
+	local boss = progress.trial_boss()
+	local biome = campaign.BIOMES[boss.biome]
+	local p, w, h = panel(root, app, 600, 720, i18n.t("TRIAL"))
+	close_btn(app, p, w, h)
+	local top = h / 2 - 70
+	ui.label(p, i18n.t("TRIAL_SUB"), 0, top - 10, 19, ui.DIM, w - 80, { lines = 2 })
+	local ay = top - 150
+	local arena = ui.box(p, boss.arena, 0, ay, w - 60, 200, ui.hex(biome.tint))
+	gui.set_alpha(arena, 0.7)
+	ui.box(p, "vignette", 0, ay, w - 60, 200, V4(1, 1, 1, 0.8))
+	local face = ui.box(p, boss.face, -w / 2 + 110, ay, 140, 140)
+	ui.bob(face, 4, 0.9)
+	for i, col in ipairs(config.ATTACK_COLORS) do
+		local sq = squads.get(boss.squads[col].id)
+		local a = ui.icon(p, sq.sprite, -10 + (i - 1) * 110, ay, 96)
+		gui.set_scale(a, V3(-1, 1, 1))
+	end
+	local y = ay - 130
+	ui.label(p, i18n.t(boss.name_key), 0, y, 28, ui.BONE, w - 60)
+	y = y - 46
+	ui.box(p, "icon_heart", -150, y, 34, 34)
+	ui.text(p, tostring(boss.hp), -96, y, 24, ui.BONE)
+	ui.box(p, "icon_move_orb", 40, y, 30, 30)
+	ui.text(p, i18n.t("MOVES_FMT", { n = boss.moves }), 120, y, 22, ui.BONE)
+	y = y - 66
+	-- Reward preview: the streak raises diamonds; every 3rd day in a row pays a royal chest.
+	local next_streak = progress.trial_streak() + 1
+	local dia = boss.diamonds + math.min(next_streak - 1, 6) * 2
+	local chest = (next_streak % 3 == 0) and "royal" or "silver"
+	local rb = ui.slice(p, "panel_dark", 0, y, w - 60, 80, ui.WHITE, 16)
+	widgets.reward_row(rb, { gold = boss.gold, diamonds = dia, chest = chest }, 0, 0, 40)
+	y = y - 66
+	local fl = ui.box(p, "icon_fire", -w / 2 + 70, y, 40, 40)
+	ui.pulse(fl, 1.12, 0.4)
+	ui.label(p, i18n.t("TRIAL_STREAK_HINT", { n = next_streak }), 20, y, 18, ui.GOLD, w - 160, { lines = 2 })
+	ui.btn(p, "btn_crimson", 0, -h / 2 + 60, w - 140, 84, i18n.t("FIGHT"), 32, function()
+		app.close_popup(true)
+		app.start_trial()
 	end, { icon = "icon_pvp", icon_size = 48, pulse = true })
 end
 

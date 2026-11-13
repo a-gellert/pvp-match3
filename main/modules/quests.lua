@@ -18,6 +18,15 @@ function M.today()
 	return t.year * 1000 + t.yday
 end
 
+-- Day id of the previous calendar day (handles the year boundary).
+function M.yesterday()
+	local t = os.date("*t", M.now())
+	t.day = t.day - 1
+	t.hour = 12
+	local y = os.date("*t", os.time(t))
+	return y.year * 1000 + y.yday
+end
+
 function M.seconds_to_reset()
 	local t = os.date("*t", M.now())
 	return math.max(1, 86400 - (t.hour * 3600 + t.min * 60 + t.sec))

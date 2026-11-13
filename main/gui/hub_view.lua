@@ -97,12 +97,13 @@ local function nav_bar(app, cx0, cx1, h)
 		gui.set_inherit_alpha(lbl, false)
 		ui.button(hit, function() app.set_tab(tab.id) end, { silent = true })
 		local cnt = badges[tab.id] or 0
-		if cnt > 0 and not active then
+		local tut_hand = tab.id == "cards" and not active and progress.data.onboarding_step == 2
+		if cnt > 0 and not active and not tut_hand then
 			local bd = ui.badge(hit, isz / 2 + 4, isz / 2, cnt, 30)
 			gui.set_inherit_alpha(bd, false)
 		end
-		if tab.id == "cards" and not active and progress.data.onboarding_step == 2 then
-			local hand = ui.box(holder, "icon_hand", 24, 34, 52, 52)
+		if tut_hand then
+			local hand = ui.box(holder, "icon_hand", 22, 30, 52, 52)
 			ui.pulse(hand, 1.18, 0.45)
 		end
 	end
@@ -136,6 +137,36 @@ local function daily_tile(app, parent, x, y, w, h)
 	if pending then ui.bob(ic, 5, 0.5); ui.badge(box, w / 2 - 6, h / 2 - 6, 1, 30) end
 	ui.label(box, i18n.t("DAILY_SHORT"), 0, -h / 2 + 20, 16, pending and ui.GOLD or ui.BONE, w - 12)
 	ui.button(box, function() app.open_popup("daily") end)
+end
+
+-- Daily Trial tile: today's boss face, "fight" state with a badge or a "done" check + streak.
+local function trial_tile(app, parent, x, y, w, h)
+	local avail = progress.trial_available()
+	local boss = progress.trial_boss()
+	local box = ui.slice(parent, avail and "card_legendary" or "panel_dark", x, y, w, h, ui.WHITE, 18)
+	local face = ui.icon(box, boss.face, 0, 14, math.min(h - 50, 70), avail and ui.WHITE or V4(0.6, 0.62, 0.7, 1))
+	if avail then
+		ui.bob(face, 4, 0.6)
+		ui.badge(box, w / 2 - 6, h / 2 - 6, 1, 30)
+	else
+		ui.box(box, "icon_check", w / 2 - 26, h / 2 - 26, 36, 36)
+	end
+	local streak = progress.trial_streak()
+	if streak >= 2 then
+		local fl = ui.box(box, "icon_fire", -w / 2 + 22, h / 2 - 24, 34, 34)
+		ui.text(fl, "x" .. streak, 0, -12, 16, ui.WHITE)
+	end
+	local lbl = ui.label(box, avail and i18n.t("TRIAL_SHORT") or i18n.fmt_time(quests.seconds_to_reset()), 0, -h / 2 + 20, 16,
+		avail and ui.GOLD or ui.BONE, w - 12)
+	if not avail then st.timers[#st.timers + 1] = { node = lbl, fn = function() return i18n.fmt_time(quests.seconds_to_reset()) end } end
+	ui.button(box, function()
+		if not progress.trial_unlocked() then return end
+		if avail then
+			app.open_popup("trial")
+		else
+			ui.float_text(st.fx, i18n.t("TRIAL_TOMORROW"), x, y + h / 2, 20, ui.DIM, 30)
+		end
+	end)
 end
 
 local function league_banner(app, parent, cx, y, w)
@@ -224,7 +255,7 @@ local function star_chest_bar(app, parent, cx, y, w, h)
 
 	local box = ui.slice(parent, ready and "card_rare" or "panel_stone", cx, y, w, h, ui.WHITE, 16)
 	if ready then
-		local rays = ui.glow(ui.box(box, "rays", 0, 0, h * 1.8, h * 1.8, V4(1, 0.85, 0.4, 0.35)))
+		local rays = ui.glow(ui.box(box, "rays", w / 2 - 32, 0, h * 1.3, h * 1.3, V4(1, 0.85, 0.4, 0.3)))
 		ui.spin(rays, 8)
 	end
 
@@ -234,7 +265,7 @@ local function star_chest_bar(app, parent, cx, y, w, h)
 	local bar_w = w - 124
 	local bar_x = -w / 2 + 52 + bar_w / 2
 	local txt = ready and i18n.t("STAR_CHEST_READY") or (cur_have .. " / " .. cur_need)
-	ui.bar(box, bar_x, 0, bar_w, 28, math.min(1, cur_have / cur_need), ui.YELLOW, { text = txt, text_size = 15, text_color = ready and ui.INK or ui.WHITE })
+	ui.bar(box, bar_x, 0, bar_w, 28, math.min(1, cur_have / cur_need), ui.YELLOW, { text = txt, text_size = 15, text_color = ui.WHITE })
 
 	local cic = ui.icon(box, config.CHESTS[rarity].sprite, w / 2 - 32, 0, 48)
 	if ready then ui.pulse(cic, 1.15, 0.38) end
@@ -291,11 +322,18 @@ local function build_home(app, parent, R)
 		local sc_top = R.y1 - 118
 		local sc_bot = bar_y + 44
 		showcase(app, parent, lcx, (sc_top + sc_bot) / 2, lw, sc_top - sc_bot)
-		-- Right column: gift + daily, then chests 2x2
+		-- Right column: gift + daily (+ trial), then chests 2x2
 		local tile_h = 150
 		local ty = R.y1 - tile_h / 2 - 4
-		free_gift_tile(app, parent, rcx - rw / 4 - 4, ty, rw / 2 - 8, tile_h)
-		daily_tile(app, parent, rcx + rw / 4 + 4, ty, rw / 2 - 8, tile_h)
+		if d.onboarding_done then
+			local tw3 = (rw - 16) / 3
+			free_gift_tile(app, parent, rcx - tw3 - 8, ty, tw3, tile_h)
+			daily_tile(app, parent, rcx, ty, tw3, tile_h)
+			trial_tile(app, parent, rcx + tw3 + 8, ty, tw3, tile_h)
+		else
+			free_gift_tile(app, parent, rcx - rw / 4 - 4, ty, rw / 2 - 8, tile_h)
+			daily_tile(app, parent, rcx + rw / 4 + 4, ty, rw / 2 - 8, tile_h)
+		end
 		widgets.section(parent, i18n.t("CHESTS"), rcx, ty - tile_h / 2 - 34, rw, "chest_wood")
 		local ch_top = ty - tile_h / 2 - 62
 		local ch_h = math.min(240, (ch_top - R.y0 - 12) / 2)
@@ -324,6 +362,9 @@ local function build_home(app, parent, R)
 		showcase(app, parent, cx, sc_bot + sc_h / 2, w - (tile_w * 2 + 20), sc_h)
 		free_gift_tile(app, parent, cx - w / 2 + tile_w / 2, sc_bot + sc_h - 80, tile_w, 150)
 		daily_tile(app, parent, cx + w / 2 - tile_w / 2, sc_bot + sc_h - 80, tile_w, 150)
+		if d.onboarding_done and sc_h >= 320 then
+			trial_tile(app, parent, cx + w / 2 - tile_w / 2, sc_bot + sc_h - 240, tile_w, 150)
+		end
 		local cw = (w - 30) / 4
 		for i = 1, 4 do
 			local tn = widgets.chest_slot(parent, app, i, cx - w / 2 + cw / 2 + 6 + (i - 1) * (cw + 6), chest_y, cw, chest_h)

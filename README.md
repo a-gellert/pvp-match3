@@ -4,7 +4,7 @@ Casual dark-fantasy **Match-3 battler** for [Poki](https://poki.com/), made with
 
 - 7×7 board shared with the enemy, 1–7 moves per turn, special gems, cascades and squad rune skills.
 - 18 squads (Clash Royale–style cards and upgrades), 30-stage campaign in 5 biomes with stars and bosses, PvP ladder with 6 leagues and a 40-step prestige road.
-- Daily quests, 7-day login calendar, free gift every 4 hours, daily shop deals, chest slots with timers.
+- Daily Trial (a new boss every day with a win streak), daily quests, 7-day login calendar, free gift every 4 hours, daily shop deals, chest slots with timers.
 - Russian and English localization.
 
 Design and architecture: [docs/DESIGN_DOC.md](docs/DESIGN_DOC.md). Rules for contributors and agents: [AGENTS.md](AGENTS.md).
@@ -43,4 +43,4 @@ node tools/web_smoke.js "bundle/web/Gem Vanguard" out --screen=home --size=405x7
 node tools/web_smoke.js "bundle/web/Gem Vanguard" out --size=405x720 --steps="wait:6;click:200,400;wait:2;shot:after"
 ```
 
-`--screen` jumps to a debug state (`home`, `cards`, `map`, `shop`, `quests`, `battle`, `pvp`, `chest`, `win`, `road`, `stage`); the script prints the number of Lua/JS errors seen in the console.
+`--screen` jumps to a debug state (`home`, `cards`, `map`, `shop`, `quests`, `battle`, `pvp`, `chest`, `win`, `road`, `stage`, `trial`, `trial_battle`, `trial_win`); the script prints the number of Lua/JS errors seen in the console.

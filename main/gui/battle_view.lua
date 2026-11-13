@@ -506,7 +506,9 @@ function M.build(app, parent)
 	local is_land = app.orient == "landscape"
 
 	-- Theme tint: campaign biome or PvP league colour
-	local tint_hex = s.mode == "campaign" and campaign.biome(s.stage_id).tint or "#c9d6ee"
+	local trial_opp = s.mode == "trial" and app.last_fight and app.last_fight.opp
+	local tint_hex = s.mode == "campaign" and campaign.biome(s.stage_id).tint
+		or (trial_opp and campaign.BIOMES[trial_opp.biome].tint) or "#c9d6ee"
 	local th = ui.hex(tint_hex)
 	ui.background(st.root, vw, vh, th, true)
 
@@ -559,6 +561,7 @@ function M.build(app, parent)
 	end, { text_color = st.speed == 2 and ui.GOLD or ui.BONE })
 	st.speed_btn = speed_b
 	local stage_str = s.mode == "pvp" and i18n.t("PVP")
+		or s.mode == "trial" and i18n.t("TRIAL")
 		or (i18n.t("STAGE_FMT", { n = s.stage_id }) .. (campaign.get_stage(s.stage_id).boss and ("  " .. i18n.t("BOSS")) or ""))
 	local title_w = (cx1 - cx0) - 360
 	ui.label(st.root, stage_str, acx, st.top_y + 12, 26, ui.BONE, title_w)

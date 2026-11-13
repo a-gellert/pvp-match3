@@ -1,6 +1,6 @@
 // Browser smoke test: serves a web bundle, mocks the Poki SDK, drives Edge/Chrome over CDP.
 // Usage:
-//   node tools/web_smoke.js <bundle_dir> <out_dir> [--size=405x720] [--screen=home|cards|map|shop|quests|battle|pvp|chest|win|road|stage]
+//   node tools/web_smoke.js <bundle_dir> <out_dir> [--size=405x720] [--screen=home|cards|map|shop|quests|battle|pvp|chest|win|road|stage|trial|trial_battle|trial_win]
 //        [--secs=7] [--lang=ru] [--fresh=1] [--cfg=pvp.autoplay=1] [--steps="wait:2;click:200,640;shot:after;drag:100,300,160,300"]
 // Without --steps it waits --secs and saves <screen>_<WxH>.png. Lua errors (ERROR:SCRIPT) are counted.
 const fs = require('fs');

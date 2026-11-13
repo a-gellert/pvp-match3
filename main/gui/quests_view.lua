@@ -65,16 +65,16 @@ local function quest_row(app, C, idx, q, y, w)
 	ui.icon(box, QUEST_ICON[def.stat] or "icon_quest", -w / 2 + 54, 6, 64)
 	local tx = -w / 2 + 104
 	local tw = w - 104 - 200
-	ui.label(box, i18n.t("Q_" .. q.id, { n = q.target }), tx, 30, 20, ui.BONE, tw, { pivot = gui.PIVOT_W })
-	ui.bar(box, tx + tw / 2, -12, tw, 26, math.min(1, q.prog / q.target), done and ui.GREEN or ui.BLUE,
+	ui.label(box, i18n.t("Q_" .. q.id, { n = q.target }), tx, 22, 20, ui.BONE, tw, { pivot = gui.PIVOT_W })
+	ui.bar(box, tx + tw / 2, -18, tw, 28, math.min(1, q.prog / q.target), done and ui.GREEN or ui.BLUE,
 		{ text = math.min(q.prog, q.target) .. " / " .. q.target, text_size = 17 })
 	local rw = { gold = q.gold, diamonds = q.diamonds }
-	widgets.reward_row(box, rw, tx + 40, -44, 26)
 	local bx = w / 2 - 94
 	if q.claimed then
 		ui.box(box, "icon_check", bx, 0, 56, 56)
 	elseif done then
-		ui.btn(box, "btn_gold", bx, 0, 160, 70, i18n.t("CLAIM"), 22, function()
+		widgets.reward_row(box, rw, bx, 38, 24)
+		ui.btn(box, "btn_gold", bx, -14, 160, 64, i18n.t("CLAIM"), 22, function()
 			local reward = progress.claim_quest(idx)
 			if reward then
 				audio.play("quest")
@@ -82,7 +82,7 @@ local function quest_row(app, C, idx, q, y, w)
 			end
 		end, { pulse = true })
 	else
-		ui.label(box, math.floor(q.prog / q.target * 100) .. "%", bx, 0, 28, ui.DIM, 150)
+		widgets.reward_row(box, rw, bx, 0, 34)
 	end
 	return h
 end
