@@ -147,6 +147,10 @@ srv.listen(PORT, '127.0.0.1', async () => {
       const n = arg.split(',').map(Number);
       if (cmd === 'wait') await sleep(n[0] * 1000);
       else if (cmd === 'shot') await shot(arg || 'step');
+      else if (cmd === 'move') {
+        await mouse('mouseMoved', n[0], n[1]);
+        await sleep(100);
+      }
       else if (cmd === 'click') {
         await mouse('mouseMoved', n[0], n[1]);
         await mouse('mousePressed', n[0], n[1]);

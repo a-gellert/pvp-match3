@@ -342,6 +342,77 @@ makeGem('gem_blue',
   '#d9f2ff'
 );
 
+// ======================================================================= TOON BLAST CUBES / STONES (128x128)
+function makeBlastGem(name, cTop, cBot, cShadow, innerShape, innerCol) {
+  const c = canvas(128, 128);
+  // 1. Soft drop shadow
+  c.fill(rbox(64, 71, 46, 44, 16), H('#060914', 0.5));
+
+  // 2. 3D Block bottom bevel / base thickness
+  const baseBox = rbox(64, 66, 46, 43, 15);
+  c.outlined(baseBox, H(cShadow), 2.5, OUTC);
+
+  // 3. Raised block face (shifted up to y=58 for 3D toy block perspective)
+  const faceBox = rbox(64, 58, 46, 41, 14);
+  c.outlined(faceBox, vgrad(H(cTop), H(cBot), 17, 99), 2.5, OUTC);
+
+  // 4. Subtle inner bevel / shiny edge highlight around the face
+  c.stroke(rbox(64, 57, 43, 38, 11), vgrad(lighter(H(cTop), 0.58), darker(H(cBot), 0.72), 19, 95), 2.5);
+
+  // 5. Tactile embossed emblem centered at y=58
+  // Shadow underneath emblem
+  c.fill((x, y) => innerShape(x, y - 2.5), darker(H(cBot), 0.55));
+  // Emblem face with crisp dark fantasy ink outline
+  c.outlined(innerShape, H(innerCol, 0.95), 1.5, OUTC);
+
+  // 6. Glossy toy reflections
+  c.fill(ellipse(64, 30, 26, 6.5), [1, 1, 1, 0.42]);
+  c.fill(circle(34, 36, 3.2), [1, 1, 1, 0.58]);
+  c.fill(circle(40, 31, 1.8), [1, 1, 1, 0.42]);
+
+  c.save(name);
+}
+
+// Blast Red = Damage 1 (Ruby rounded cube + sword)
+makeBlastGem('blast_red',
+  '#ff4d68', '#ba1436', '#700a1e',
+  union(
+    poly([[64, 34], [74, 68], [64, 78], [54, 68]]),
+    rbox(64, 73, 16, 3.5, 2),
+    rbox(64, 82, 3.5, 6, 2),
+    circle(64, 87, 3)
+  ),
+  '#ffe8ec'
+);
+
+// Blast Yellow = Damage 2 (Topaz rounded cube + lightning bolt)
+makeBlastGem('blast_yellow',
+  '#ffe84d', '#d97706', '#854300',
+  poly([[68, 32], [46, 62], [62, 62], [56, 86], [82, 56], [64, 56]], 1.5),
+  '#fffde6'
+);
+
+// Blast Purple = Damage 3 (Amethyst rounded cube + arcane star)
+makeBlastGem('blast_purple',
+  '#d670ff', '#721ca8', '#440e6e',
+  star(64, 58, 21, 9.5, 4, -45, 2),
+  '#faeaff'
+);
+
+// Blast Green = Heal (Emerald rounded cube + clover cross)
+makeBlastGem('blast_green',
+  '#4eed98', '#128c4b', '#0b542c',
+  union(rbox(64, 58, 17, 6, 2.5), rbox(64, 58, 6, 17, 2.5)),
+  '#e6fff8'
+);
+
+// Blast Blue = Shield (Sapphire rounded cube + kite chevron)
+makeBlastGem('blast_blue',
+  '#52c2ff', '#165ecf', '#0c3d8a',
+  poly([[64, 36], [82, 48], [78, 70], [64, 82], [50, 70], [46, 48]], 2.5),
+  '#e0f5ff'
+);
+
 // Special Gem overlays & Prism
 {
   const lh = canvas(128, 128);
@@ -968,7 +1039,7 @@ if (fs.existsSync(ART_DIR)) {
     const buf = fs.readFileSync(src);
     const w = buf.readUInt32BE(16);
     const h = buf.readUInt32BE(20);
-    fs.copyFileSync(src, `${OUT}/${file}`);
+    fs.writeFileSync(`${OUT}/${file}`, fs.readFileSync(src));
     const existing = byName.get(name);
     if (existing) {
       existing.w = w; existing.h = h; existing.px = null;
@@ -1005,7 +1076,7 @@ const CORE = [];
 const LAZY_LIST = [];
 for (const a of ALL) {
   if (LAZY_SPRITES[a.name]) {
-    fs.copyFileSync(`${OUT}/${a.name}.png`, `${LAZY_DIR}/${a.name}.png`);
+    fs.writeFileSync(`${LAZY_DIR}/${a.name}.png`, fs.readFileSync(`${OUT}/${a.name}.png`));
     LAZY_LIST.push(a);
   } else {
     CORE.push(a);

@@ -74,6 +74,21 @@ images {
   image: "/main/assets/images/gem_blue.png"
 }
 images {
+  image: "/main/assets/images/blast_red.png"
+}
+images {
+  image: "/main/assets/images/blast_yellow.png"
+}
+images {
+  image: "/main/assets/images/blast_purple.png"
+}
+images {
+  image: "/main/assets/images/blast_green.png"
+}
+images {
+  image: "/main/assets/images/blast_blue.png"
+}
+images {
   image: "/main/assets/images/spec_line_h.png"
 }
 images {

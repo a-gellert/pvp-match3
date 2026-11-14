@@ -5,6 +5,7 @@
 -- (clear -> specials -> gravity -> refill) and combat FX are synced to the step that caused them.
 local ui = require "main.gui.ui"
 local config = require "main.modules.config"
+local board = require "main.modules.board"
 local battle = require "main.modules.battle"
 local campaign = require "main.modules.campaign"
 local i18n = require "main.modules.i18n"
@@ -29,6 +30,7 @@ local DMG_COLOR = V4(1, 0.93, 0.86, 1)
 local DEAD_COLOR = V4(0.36, 0.38, 0.46, 0.6)
 
 local st = {}
+local clear_hover, update_hover
 
 local function speed_mul()
 	local base = st.speed or 1
@@ -75,7 +77,7 @@ local function make_gem(r, c, gem, start_y)
 		end
 		return { node = n, stone = true, hp = gem.hp }
 	end
-	local n = ui.box(st.gem_layer, ui.GEM_SPRITE[gem.color] or "gem_red", x, start_y or y, gs, gs)
+	local n = ui.box(st.gem_layer, ui.gem_sprite(gem.color), x, start_y or y, gs, gs)
 	if gem.empowered then
 		local em = ui.glow(ui.box(n, "obs_empowered", 0, 0, gs * 1.18, gs * 1.18, V4(1, 0.92, 0.45, 0.92)))
 		ui.pulse(em, 1.09, 0.55)
@@ -110,6 +112,7 @@ local function kill_gem(g, delay)
 end
 
 local function rebuild_gems(pop)
+	if clear_hover then clear_hover() end
 	if st.gem_layer then gui.delete_node(st.gem_layer) end
 	st.gem_layer = ui.pane(st.clip, -st.board_cx, -st.board_cy)
 	st.gems = {}
@@ -125,6 +128,7 @@ end
 
 -- Make the displayed gems match the logic board exactly (after cascades / shuffles).
 local function sync_board()
+	if clear_hover then clear_hover() end
 	local g = st.session.board.grid
 	for r = 1, N do
 		for c = 1, N do
@@ -1418,6 +1422,7 @@ function M.process()
 	s.events = {}
 	clear_hint()
 	clear_target()
+	if clear_hover then clear_hover() end
 	if st.tut_node then gui.delete_node(st.tut_node); st.tut_node = nil end
 
 	local t = 0
@@ -1619,6 +1624,7 @@ local function try_swap(r1, c1, r2, c2)
 end
 
 local function try_tap(r, c)
+	if clear_hover then clear_hover() end
 	set_selected(nil)
 	clear_target()
 	if r < 1 or r > N or c < 1 or c > N then return end
@@ -1698,6 +1704,87 @@ local function squish_gem(r, c, g)
 	ui.burst(st.fx_layer, cx, cy, 3, color, st.cell * 0.35, 14)
 end
 
+clear_hover = function()
+	if not st.hover_cluster then return end
+	for _, p in ipairs(st.hover_cluster) do
+		local g = st.gems and st.gems[p.r] and st.gems[p.r][p.c]
+		if g and g.node then
+			pcall(gui.cancel_animations, g.node, "scale")
+			pcall(gui.set_scale, g.node, V3(1, 1, 1))
+		end
+	end
+	st.hover_cluster = nil
+	st.hover_keys = nil
+end
+
+update_hover = function(r, c)
+	if not can_act() or not config.is_blast_mode() then
+		clear_hover()
+		return
+	end
+	if not r or not c or r < 1 or r > N or c < 1 or c > N then
+		clear_hover()
+		return
+	end
+
+	local k = r .. ":" .. c
+	if st.hover_keys and st.hover_keys[k] then
+		return
+	end
+
+	local s = st.session
+	if not s or not s.board then
+		clear_hover()
+		return
+	end
+
+	local g = s.board.grid[r] and s.board.grid[r][c]
+	if not g or g.hole or g.stone or g.ice then
+		clear_hover()
+		return
+	end
+
+	local removable = nil
+	if g.special then
+		local combo = { { r = r, c = c } }
+		local dirs = { { -1, 0 }, { 1, 0 }, { 0, -1 }, { 0, 1 } }
+		for _, d in ipairs(dirs) do
+			local nr, nc = r + d[1], c + d[2]
+			if nr >= 1 and nr <= N and nc >= 1 and nc <= N then
+				local ng = s.board.grid[nr][nc]
+				if ng and ng.special and not ng.ice then
+					combo[#combo + 1] = { r = nr, c = nc }
+					break
+				end
+			end
+		end
+		removable = combo
+	else
+		local cluster = board.find_cluster(s.board.grid, r, c)
+		if #cluster >= 2 then
+			removable = cluster
+		end
+	end
+
+	if not removable then
+		clear_hover()
+		return
+	end
+
+	clear_hover()
+
+	st.hover_cluster = removable
+	st.hover_keys = {}
+	for _, p in ipairs(removable) do
+		st.hover_keys[p.r .. ":" .. p.c] = true
+		local gem = st.gems and st.gems[p.r] and st.gems[p.r][p.c]
+		if gem and gem.node then
+			pcall(gui.cancel_animations, gem.node, "scale")
+			pcall(gui.animate, gem.node, "scale", V3(1.10, 1.10, 1), gui.EASING_INOUTSINE, 0.32, 0, nil, gui.PLAYBACK_LOOP_PINGPONG)
+		end
+	end
+end
+
 function M.on_raw_input(action_id, action)
 	local s = st.session
 	if not s or s.status ~= "play" then return end
@@ -1708,6 +1795,7 @@ function M.on_raw_input(action_id, action)
 	if not (x and y) then return end
 
 	if pressed then
+		clear_hover()
 		local r, c = screen_to_cell(x, y)
 		local col = ui.GOLD
 		local g = (r and c and st.gems and st.gems[r]) and st.gems[r][c]
@@ -1728,12 +1816,17 @@ function M.on_raw_input(action_id, action)
 		end
 	elseif released then
 		st.last_trail = nil
+		clear_hover()
 	else
 		touch_trail(x, y)
+		st.mouse_x, st.mouse_y = x, y
+		local r, c = screen_to_cell(x, y)
+		update_hover(r, c)
 	end
 end
 
 function M.touch_start(x, y)
+	if clear_hover then clear_hover() end
 	local s = st.session
 	local is_tut1 = s and s.tutorial and s.tutorial_step == 1
 	local is_confused = (st.confusion_count or 0) >= 3
@@ -1905,6 +1998,14 @@ function M.update(dt)
 		local hint_wait = HINT_DELAY / speed_mul()
 		if st.idle >= hint_wait and not st.hint_nodes then
 			show_hint()
+		end
+		if config.is_blast_mode() then
+			if st.hover_cluster and not can_act() then
+				clear_hover()
+			elseif can_act() and not st.hover_cluster and st.mouse_x and st.mouse_y then
+				local r, c = screen_to_cell(st.mouse_x, st.mouse_y)
+				if r and c then update_hover(r, c) end
+			end
 		end
 	end
 end

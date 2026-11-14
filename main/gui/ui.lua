@@ -8,6 +8,7 @@ local druid_style = require "main.gui.druid_style"
 local audio = require "main.modules.audio"
 local loader = require "main.modules.loader"
 local sizes = require "main.gui.sprite_sizes"
+local config = require "main.modules.config"
 
 -- Defold dispatches TOUCH_MULTI (action.touch) for touch swipes on both native Android/iOS
 -- and HTML5 mobile browsers, while mouse emulation only sends tap start/end without move
@@ -97,6 +98,14 @@ M.SHADOW   = V4(0, 0, 0, 0.45)
 
 M.GEM_COLOR = { red = M.RED, yellow = M.YELLOW, purple = M.PURPLE, green = M.GREEN, blue = M.BLUE, prism = M.WHITE }
 M.GEM_SPRITE = { red = "gem_red", yellow = "gem_yellow", purple = "gem_purple", green = "gem_green", blue = "gem_blue", prism = "gem_prism" }
+M.BLAST_SPRITE = { red = "blast_red", yellow = "blast_yellow", purple = "blast_purple", green = "blast_green", blue = "blast_blue", prism = "gem_prism" }
+
+function M.gem_sprite(color)
+	if config.is_blast_mode() then
+		return M.BLAST_SPRITE[color] or M.GEM_SPRITE[color] or "blast_red"
+	end
+	return M.GEM_SPRITE[color] or "gem_red"
+end
 M.RARITY_FRAME = { common = "card_common", rare = "card_rare", epic = "card_epic", legendary = "card_legendary" }
 M.RARITY_COLOR = { common = M.hex("#cbd5e1"), rare = M.hex("#f59e0b"), epic = M.hex("#c084fc"), legendary = M.hex("#38bdf8") }
 
