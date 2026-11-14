@@ -169,8 +169,9 @@ end
 
 local function clear_swipe_prompt()
 	if st.swipe_prompt then
-		gui.delete_node(st.swipe_prompt)
+		pcall(gui.delete_node, st.swipe_prompt)
 		st.swipe_prompt = nil
+		st.swipe_prompt_id = (st.swipe_prompt_id or 0) + 1
 	end
 end
 
@@ -182,6 +183,8 @@ local function show_swipe_prompt(r, c)
 		px, py = cell_pos(r, c)
 		py = py + st.cell * 0.72
 	end
+	st.swipe_prompt_id = (st.swipe_prompt_id or 0) + 1
+	local my_id = st.swipe_prompt_id
 	local node = ui.pane(st.fx_layer, px, py)
 	st.swipe_prompt = node
 	local pw = 240
@@ -190,34 +193,39 @@ local function show_swipe_prompt(r, c)
 	ui.pulse(pill, 1.08, 0.38)
 	gui.animate(node, "position.y", py + 12, gui.EASING_INOUTSINE, 0.45, 0, nil, gui.PLAYBACK_LOOP_PINGPONG)
 	ui.after(3.0, function()
-		if st.swipe_prompt == node then clear_swipe_prompt() end
+		if st.swipe_prompt_id == my_id then clear_swipe_prompt() end
 	end)
 end
 
 local function clear_hint()
 	st.idle = 0
 	if st.hint_fx then
-		for _, n in ipairs(st.hint_fx) do gui.delete_node(n) end
+		for _, n in ipairs(st.hint_fx) do pcall(gui.delete_node, n) end
 		st.hint_fx = nil
 	end
 	if st.hint_nodes then
 		for _, g in ipairs(st.hint_nodes) do
 			if g.node then
-				gui.cancel_animations(g.node, "scale")
-				gui.set_scale(g.node, V3(1, 1, 1))
+				pcall(gui.cancel_animations, g.node, "scale")
+				pcall(gui.set_scale, g.node, V3(1, 1, 1))
 			end
 		end
 		st.hint_nodes = nil
 	end
-	if st.hint_hand then gui.delete_node(st.hint_hand); st.hint_hand = nil end
+	if st.hint_hand then
+		pcall(gui.delete_node, st.hint_hand)
+		st.hint_hand = nil
+	end
 end
 
 local function show_hint()
+	clear_hint()
 	local s = st.session
 	local m = battle.suggest_move(s)
 	if not m then return end
-	local a, b = st.gems[m.r1][m.c1], st.gems[m.r2][m.c2]
-	if not (a and b) then return end
+	local a = st.gems[m.r1] and st.gems[m.r1][m.c1]
+	local b = st.gems[m.r2] and st.gems[m.r2][m.c2]
+	if not (a and b and a.node and b.node) then return end
 	st.hint_nodes = { a, b }
 	st.hint_fx = {}
 	for _, p in ipairs({ { m.r1, m.c1, a }, { m.r2, m.c2, b } }) do
@@ -514,7 +522,7 @@ local function show_tutorial()
 	elseif s.tutorial_step > 1 and st.tut_dim then
 		local d = st.tut_dim
 		st.tut_dim = nil
-		gui.animate(d, "color.w", 0, gui.EASING_OUTQUAD, 0.3, 0, function() gui.delete_node(d) end)
+		gui.animate(d, "color.w", 0, gui.EASING_OUTQUAD, 0.3, 0, function() pcall(gui.delete_node, d) end)
 		if s.tutorial_step <= 2 then show_hint() end
 	else
 		if s.tutorial_step <= 2 then show_hint() end
@@ -564,7 +572,7 @@ function M.build(app, parent)
 		hammer_mode = false, sel = nil, drag = nil,
 		speed = progress.data.battle_speed or 1,
 		rush_t = nil, last_trail = nil,
-		confusion_count = 0, confusion_timer = 0, swipe_prompt = nil, sel_neighbor_fx = nil, tut_dim = nil,
+		confusion_count = 0, confusion_timer = 0, swipe_prompt = nil, swipe_prompt_id = 0, sel_neighbor_fx = nil, tut_dim = nil,
 		units = { player = {}, enemy = {} }, boost_pos = {}, orbs = {}, faces = {}, bars = {},
 		disp = { player = { hp = s.player.hp, shield = s.player.shield }, enemy = { hp = s.enemy.hp, shield = s.enemy.shield } },
 	}
@@ -1476,25 +1484,28 @@ local function bounce_invalid(r1, c1, r2, c2)
 	end
 	local a = st.gems[r1] and st.gems[r1][c1]
 	local b = st.gems[r2] and st.gems[r2][c2]
-	if not (a and b) then return end
+	if not (a and b and a.node and b.node) then return end
 	local x1, y1 = cell_pos(r1, c1)
 	local x2, y2 = cell_pos(r2, c2)
 	gui.animate(a.node, "position", V3(x1 + (x2 - x1) * 0.34, y1 + (y2 - y1) * 0.34, 0), gui.EASING_OUTQUAD, 0.06, 0, function()
-		gui.animate(a.node, "position", V3(x1, y1, 0), gui.EASING_OUTBACK, 0.12)
+		pcall(gui.animate, a.node, "position", V3(x1, y1, 0), gui.EASING_OUTBACK, 0.12)
 	end)
 	gui.animate(b.node, "position", V3(x2 + (x1 - x2) * 0.34, y2 + (y1 - y2) * 0.34, 0), gui.EASING_OUTQUAD, 0.06, 0, function()
-		gui.animate(b.node, "position", V3(x2, y2, 0), gui.EASING_OUTBACK, 0.12)
+		pcall(gui.animate, b.node, "position", V3(x2, y2, 0), gui.EASING_OUTBACK, 0.12)
 	end)
 end
 
 local function set_selected(r, c)
 	if st.sel_neighbor_fx then
-		for _, n in ipairs(st.sel_neighbor_fx) do gui.delete_node(n) end
+		for _, n in ipairs(st.sel_neighbor_fx) do pcall(gui.delete_node, n) end
 		st.sel_neighbor_fx = nil
 	end
 	if st.sel then
 		local g = st.gems[st.sel.r] and st.gems[st.sel.r][st.sel.c]
-		if g then gui.cancel_animations(g.node, "scale"); gui.set_scale(g.node, V3(1, 1, 1)) end
+		if g and g.node then
+			pcall(gui.cancel_animations, g.node, "scale")
+			pcall(gui.set_scale, g.node, V3(1, 1, 1))
+		end
 	end
 	st.sel = r and { r = r, c = c } or nil
 	gui.set_enabled(st.sel_ring, r ~= nil)
@@ -1502,7 +1513,9 @@ local function set_selected(r, c)
 		local x, y = cell_pos(r, c)
 		gui.set_position(st.sel_ring, V3(x, y, 0))
 		local g = st.gems[r][c]
-		if g then gui.animate(g.node, "scale", V3(1.12, 1.12, 1), gui.EASING_INOUTSINE, 0.35, 0, nil, gui.PLAYBACK_LOOP_PINGPONG) end
+		if g and g.node then
+			pcall(gui.animate, g.node, "scale", V3(1.12, 1.12, 1), gui.EASING_INOUTSINE, 0.35, 0, nil, gui.PLAYBACK_LOOP_PINGPONG)
+		end
 
 		-- Neighbor guidance: pulse gold ring on neighbors that form a legal match-3
 		local s = st.session
@@ -1537,7 +1550,7 @@ local function try_swap(r1, c1, r2, c2)
 		if st.tut_dim then
 			local d = st.tut_dim
 			st.tut_dim = nil
-			gui.animate(d, "color.w", 0, gui.EASING_OUTQUAD, 0.3, 0, function() gui.delete_node(d) end)
+			gui.animate(d, "color.w", 0, gui.EASING_OUTQUAD, 0.3, 0, function() pcall(gui.delete_node, d) end)
 		end
 		M.process()
 	else
@@ -1708,8 +1721,9 @@ function M.touch_end()
 	st.drag = nil
 	if not d or d.done or not can_act() then clear_target(); return end
 	local g = st.gems[d.r][d.c]
-	if g then gui.animate(g.node, "scale", V3(1, 1, 1), gui.EASING_OUTBACK, 0.12) end
+	if g and g.node then pcall(gui.animate, g.node, "scale", V3(1, 1, 1), gui.EASING_OUTBACK, 0.12) end
 	local r, c = d.r, d.c
+	local did_swap = false
 	if not st.sel then
 		set_selected(r, c)
 		st.confusion_count = (st.confusion_count or 0) + 1
@@ -1717,13 +1731,14 @@ function M.touch_end()
 		set_selected(nil)
 		st.confusion_count = (st.confusion_count or 0) + 1
 	elseif math.abs(st.sel.r - r) + math.abs(st.sel.c - c) == 1 then
+		did_swap = true
 		try_swap(st.sel.r, st.sel.c, r, c)
 	else
 		set_selected(r, c)
 		if g then show_target(g.color) end
 		st.confusion_count = (st.confusion_count or 0) + 1
 	end
-	if (st.confusion_count or 0) >= 3 then
+	if not did_swap and (st.confusion_count or 0) >= 3 then
 		show_hint()
 		show_swipe_prompt(r, c)
 	end
