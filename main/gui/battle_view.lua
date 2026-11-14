@@ -189,7 +189,8 @@ local function show_swipe_prompt(r, c)
 	st.swipe_prompt = node
 	local pw = 240
 	local pill = ui.slice(node, "btn_gold", 0, 0, pw, 44, ui.WHITE, 14)
-	ui.label(pill, i18n.t("TUT_SWIPE_ALERT"), 0, 2, 17, ui.INK, pw - 20, { plain = true })
+	local p_key = config.is_blast_mode() and "TUT_BLAST_ALERT" or "TUT_SWIPE_ALERT"
+	ui.label(pill, i18n.t(p_key), 0, 2, 17, ui.INK, pw - 20, { plain = true })
 	ui.pulse(pill, 1.08, 0.38)
 	gui.animate(node, "position.y", py + 12, gui.EASING_INOUTSINE, 0.45, 0, nil, gui.PLAYBACK_LOOP_PINGPONG)
 	ui.after(3.0, function()
@@ -223,6 +224,29 @@ local function show_hint()
 	local s = st.session
 	local m = battle.suggest_move(s)
 	if not m then return end
+
+	if config.is_blast_mode() then
+		local cells = m.match_cells or { { r = m.r or m.r1, c = m.c or m.c1 } }
+		st.hint_nodes = {}
+		st.hint_fx = {}
+		for _, mc in ipairs(cells) do
+			local gem = st.gems[mc.r] and st.gems[mc.r][mc.c]
+			if gem and gem.node then
+				st.hint_nodes[#st.hint_nodes + 1] = gem
+				local gx, gy = cell_pos(mc.r, mc.c)
+				local gc = ui.GEM_COLOR[gem.color] or ui.GOLD
+				local gl = ui.glow(ui.box(st.fx_layer, "glow", gx, gy, st.cell * 1.35, st.cell * 1.35, tint(gc, 0.55)))
+				gui.animate(gl, "scale", V3(1.18, 1.18, 1), gui.EASING_INOUTSINE, 0.42, 0, nil, gui.PLAYBACK_LOOP_PINGPONG)
+				gui.animate(gl, "color.w", 0.25, gui.EASING_INOUTSINE, 0.42, 0, nil, gui.PLAYBACK_LOOP_PINGPONG)
+				local rg = ui.glow(ui.box(st.fx_layer, "ring", gx, gy, st.cell * 1.0, st.cell * 1.0, ui.GOLD))
+				gui.animate(rg, "scale", V3(1.15, 1.15, 1), gui.EASING_INOUTSINE, 0.42, 0, nil, gui.PLAYBACK_LOOP_PINGPONG)
+				st.hint_fx[#st.hint_fx + 1] = gl
+				st.hint_fx[#st.hint_fx + 1] = rg
+				gui.animate(gem.node, "scale", V3(1.15, 1.15, 1), gui.EASING_INOUTSINE, 0.42, 0, nil, gui.PLAYBACK_LOOP_PINGPONG)
+			end
+		end
+		return
+	end
 	local a = st.gems[m.r1] and st.gems[m.r1][m.c1]
 	local b = st.gems[m.r2] and st.gems[m.r2][m.c2]
 	if not (a and b and a.node and b.node) then return end
@@ -502,7 +526,8 @@ local function show_tutorial()
 	local s = st.session
 	if not (s and s.tutorial and s.turn == "player" and s.status == "play" and s.tutorial_step <= 3) then return end
 	st.tut_node = ui.pane(st.root, 0, 0)
-	local key = ({ "TUT_MATCH", "TUT_COLORS", "TUT_SUPPORT" })[s.tutorial_step] or "TUT_MATCH"
+	local tut_keys = config.is_blast_mode() and { "TUT_BLAST", "TUT_COLORS", "TUT_SUPPORT" } or { "TUT_MATCH", "TUT_COLORS", "TUT_SUPPORT" }
+	local key = tut_keys[s.tutorial_step] or tut_keys[1]
 	-- Over the stage title in the top bar: never covers squads, bars or gems
 	local pw = math.min(st.arena_w - 250, 640)
 	local pill = ui.slice(st.tut_node, "btn_gold", st.arena_cx, st.top_y - 2, pw, 80, ui.WHITE, 18)
@@ -516,7 +541,8 @@ local function show_tutorial()
 		end
 		local by = st.board_cy + st.board_size / 2 + 32
 		local b_banner = ui.slice(st.tut_node, "btn_gold", st.board_cx, by, math.min(st.board_size, 460), 48, ui.WHITE, 16)
-		ui.label(b_banner, i18n.t("TUT_SWIPE_PROMPT"), 0, 2, 19, ui.INK, 420, { plain = true })
+		local p_key = config.is_blast_mode() and "TUT_BLAST_PROMPT" or "TUT_SWIPE_PROMPT"
+		ui.label(b_banner, i18n.t(p_key), 0, 2, 19, ui.INK, 420, { plain = true })
 		ui.pulse(b_banner, 1.06, 0.45)
 		show_hint()
 	elseif s.tutorial_step > 1 and st.tut_dim then
@@ -1225,6 +1251,24 @@ local function telegraph(ev)
 	gui.animate(hand, "color.w", 0, gui.EASING_INQUAD, dur(0.08), dur(0.20), function() gui.delete_node(hand) end)
 end
 
+-- Enemy blast preview: a red claw taps down on the chosen cluster / gem.
+local function telegraph_blast(ev)
+	local tr, tc = ev.r or ev.r1, ev.c or ev.c1
+	local x, y = cell_pos(tr, tc)
+	ui.ring(st.fx_layer, x, y, st.cell * 1.45, ui.RED, dur(0.24))
+	local g = st.gems[tr] and st.gems[tr][tc]
+	if g and g.node then
+		gui.animate(g.node, "scale", V3(1.2, 1.2, 1), gui.EASING_OUTQUAD, dur(0.09), 0, function()
+			gui.animate(g.node, "scale", V3(1, 1, 1), gui.EASING_INQUAD, dur(0.09))
+		end)
+	end
+	local hand = ui.box(st.fx_layer, "icon_hand", x + 14, y - 24, 60, 60, V4(1, 0.45, 0.45, 1))
+	gui.animate(hand, "scale", V3(0.85, 0.85, 1), gui.EASING_OUTBACK, dur(0.14), 0, function()
+		gui.animate(hand, "scale", V3(1.1, 1.1, 1), gui.EASING_INQUAD, dur(0.08))
+	end)
+	gui.animate(hand, "color.w", 0, gui.EASING_INQUAD, dur(0.08), dur(0.20), function() gui.delete_node(hand) end)
+end
+
 local COMBO_KEYS = { [2] = "COMBO_2", [3] = "COMBO_3", [4] = "COMBO_4" }
 
 local function anim_step(ev, step)
@@ -1380,7 +1424,7 @@ function M.process()
 	local i = 1
 	while i <= #evs do
 		local ev = evs[i]
-		if ev.kind == "swap" or ev.kind == "hammer" then
+		if ev.kind == "swap" or ev.kind == "hammer" or ev.kind == "blast" then
 			local t0 = t
 			if ev.kind == "swap" then
 				if ev.who == "enemy" then
@@ -1397,6 +1441,22 @@ function M.process()
 					end
 				end)
 				t0 = t0 + dur(0.12)
+			elseif ev.kind == "blast" then
+				if ev.who == "enemy" then
+					at(t0, function() telegraph_blast(ev) end)
+					t0 = t0 + dur(0.22)
+				else
+					at(t0, function()
+						local bx, by = cell_pos(ev.r, ev.c)
+						ui.ring(st.fx_layer, bx, by, st.cell * 1.5, ui.GOLD, dur(0.25))
+						local o = st.orbs[ev.who]
+						local f = s[ev.who]
+						if o and f then
+							ui.ring(st.fx_layer, o.x + o.dir * f.moves_left * o.step, o.y, 54, ui.GOLD, dur(0.25))
+						end
+					end)
+					t0 = t0 + dur(0.08)
+				end
 			else
 				at(t0, function()
 					local hx, hy = cell_pos(ev.r, ev.c)
@@ -1558,6 +1618,32 @@ local function try_swap(r1, c1, r2, c2)
 	end
 end
 
+local function try_tap(r, c)
+	set_selected(nil)
+	clear_target()
+	if r < 1 or r > N or c < 1 or c > N then return end
+	if battle.player_tap(st.session, r, c) then
+		st.confusion_count = 0
+		clear_swipe_prompt()
+		clear_hint()
+		if st.tut_dim then
+			local d = st.tut_dim
+			st.tut_dim = nil
+			gui.animate(d, "color.w", 0, gui.EASING_OUTQUAD, 0.3, 0, function() pcall(gui.delete_node, d) end)
+		end
+		M.process()
+	else
+		local g = st.gems[r] and st.gems[r][c]
+		audio.play("blocked")
+		if g and g.node then ui.shake(g.node, 8) end
+		st.confusion_count = (st.confusion_count or 0) + 1
+		if st.confusion_count >= 3 then
+			show_hint()
+			show_swipe_prompt(r, c)
+		end
+	end
+end
+
 local function can_act()
 	local s = st.session
 	return not st.busy and s.status == "play" and s.turn == "player"
@@ -1680,7 +1766,14 @@ function M.touch_start(x, y)
 	if is_tut1 then
 		local m = battle.suggest_move(s)
 		if m then
-			local is_m = (r == m.r1 and c == m.c1) or (r == m.r2 and c == m.c2)
+			local is_m = false
+			if config.is_blast_mode() then
+				for _, mc in ipairs(m.match_cells or {}) do
+					if r == mc.r and c == mc.c then is_m = true; break end
+				end
+			else
+				is_m = (r == m.r1 and c == m.c1) or (r == m.r2 and c == m.c2)
+			end
 			if not is_m then
 				audio.play("blocked")
 				if g then ui.shake(g.node, 6) end
@@ -1700,6 +1793,7 @@ function M.touch_start(x, y)
 end
 
 function M.touch_drag(total_x, total_y)
+	if config.is_blast_mode() then return end
 	local d = st.drag
 	if not d or d.done or not can_act() then return end
 	local th = st.cell * 0.25
@@ -1719,9 +1813,17 @@ end
 function M.touch_end()
 	local d = st.drag
 	st.drag = nil
-	if not d or d.done or not can_act() then clear_target(); return end
+	if not d or not can_act() then clear_target(); return end
 	local g = st.gems[d.r][d.c]
 	if g and g.node then pcall(gui.animate, g.node, "scale", V3(1, 1, 1), gui.EASING_OUTBACK, 0.12) end
+
+	if config.is_blast_mode() then
+		try_tap(d.r, d.c)
+		clear_target()
+		return
+	end
+
+	if d.done then clear_target(); return end
 	local r, c = d.r, d.c
 	local did_swap = false
 	if not st.sel then
@@ -1791,7 +1893,13 @@ function M.update(dt)
 		-- Debug autoplay (smoke tests): play the hinted move through the normal input path
 		if M.autoplay and st.idle > 0.3 then
 			local m = battle.suggest_move(s)
-			if m then try_swap(m.r1, m.c1, m.r2, m.c2) end
+			if m then
+				if config.is_blast_mode() then
+					try_tap(m.r or m.r1, m.c or m.c1)
+				else
+					try_swap(m.r1, m.c1, m.r2, m.c2)
+				end
+			end
 			return
 		end
 		local hint_wait = HINT_DELAY / speed_mul()

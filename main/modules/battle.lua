@@ -424,7 +424,44 @@ local function begin_turn(s, next_who)
 	end
 end
 
+function M.player_tap(s, r, c)
+	if s.status ~= "play" or s.turn ~= "player" then return false end
+	local steps, shuffled = board.resolve_tap(s.board, r, c)
+	if not steps then return false end
+
+	if s.tutorial and s.tutorial_step > 0 then
+		s.tutorial_step = s.tutorial_step + 1
+	end
+	push(s, { kind = "blast", who = "player", r = r, c = c, steps = steps, shuffled = shuffled })
+	apply_effects(s, s.player, s.enemy, "player", steps)
+
+	s.player.moves_left = math.max(0, s.player.moves_left - 1)
+	if check_end(s) then return true end
+
+	if s.player.moves_left == 0 then
+		if s.player.statuses.weak then
+			s.player.statuses.weak.turns = s.player.statuses.weak.turns - 1
+			if s.player.statuses.weak.turns <= 0 then s.player.statuses.weak = nil end
+		end
+		local ct = board.tick_curses(s.board)
+		if #ct.exploded > 0 then
+			local bdmg = math.max(5, math.floor(s.player.max_hp * 0.07 + 0.5)) * #ct.exploded
+			local dealt, blocked = apply_damage(s.player, bdmg, 0)
+			push(s, { kind = "curse_blast", cells = ct.exploded, dmg = bdmg, dealt = dealt, blocked = blocked })
+			if check_end(s) then return true end
+		end
+		if #ct.remaining > 0 then
+			push(s, { kind = "curse_tick", cells = ct.remaining })
+		end
+		begin_turn(s, "enemy")
+	end
+	return true
+end
+
 function M.player_swap(s, r1, c1, r2, c2)
+	if config.is_blast_mode() then
+		return M.player_tap(s, r1, c1)
+	end
 	if s.status ~= "play" or s.turn ~= "player" then return false end
 	local steps, shuffled = board.resolve_swap(s.board, r1, c1, r2, c2)
 	if not steps then return false end
@@ -467,10 +504,19 @@ function M.step_enemy(s)
 		m = ai.pick_move(s.board, s.enemy, s.enemy.difficulty, s.rng)
 	end
 	if m then
-		local steps, shuffled = board.resolve_swap(s.board, m.r1, m.c1, m.r2, m.c2)
-		if steps then
-			push(s, { kind = "swap", who = "enemy", r1 = m.r1, c1 = m.c1, r2 = m.r2, c2 = m.c2, steps = steps, shuffled = shuffled })
-			apply_effects(s, s.enemy, s.player, "enemy", steps)
+		if config.is_blast_mode() then
+			local tr, tc = m.r or m.r1, m.c or m.c1
+			local steps, shuffled = board.resolve_tap(s.board, tr, tc)
+			if steps then
+				push(s, { kind = "blast", who = "enemy", r = tr, c = tc, steps = steps, shuffled = shuffled })
+				apply_effects(s, s.enemy, s.player, "enemy", steps)
+			end
+		else
+			local steps, shuffled = board.resolve_swap(s.board, m.r1, m.c1, m.r2, m.c2)
+			if steps then
+				push(s, { kind = "swap", who = "enemy", r1 = m.r1, c1 = m.c1, r2 = m.r2, c2 = m.c2, steps = steps, shuffled = shuffled })
+				apply_effects(s, s.enemy, s.player, "enemy", steps)
+			end
 		end
 	end
 	s.enemy.moves_left = math.max(0, s.enemy.moves_left - 1)
@@ -538,10 +584,28 @@ function M.revive_player(s)
 	return true
 end
 
--- Hint: the swap that clears the most gems (prefers 4+/specials, breaks ties toward attack gems).
+-- Hint: best move to play (clears most gems / creates specials, breaks ties toward attack gems).
 local ATK_HINT = { red = true, yellow = true, purple = true }
 function M.suggest_move(s)
 	local moves = board.valid_moves(s.board.grid)
+	if #moves == 0 then return nil end
+
+	if config.is_blast_mode() then
+		local best, best_n = moves[1], -1
+		for _, m in ipairs(moves) do
+			local n = m.size or (m.cells and #m.cells) or 1
+			if m.special then n = 12 end
+			if m.color and ATK_HINT[m.color] then n = n + 0.1 end
+			if n > best_n then
+				best, best_n = m, n
+			end
+		end
+		if best then
+			best.match_cells = best.cells or { { r = best.r, c = best.c } }
+		end
+		return best
+	end
+
 	local best, best_n = moves[1], -1
 	local best_cells = nil
 	local g = s.board.grid

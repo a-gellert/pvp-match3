@@ -5,6 +5,24 @@ local M = {}
 -- 5 moves, upgraded legendary squads, full collection, currencies, boosters and chests).
 M.VIDEO_MODE = false
 
+-- Gameplay mechanic mode:
+-- "match3" = classic swap Match-3
+-- "blast"  = Toon Blast style tap-to-blast collapse (tap clusters of 2+, specials on 5/7/9, adjacent special combos)
+M.GAME_MODE = "blast"
+-- Direct boolean flag for convenience: set M.BLAST_MODE = true to activate Toon Blast mode
+M.BLAST_MODE = true
+
+function M.is_blast_mode()
+	if M.BLAST_MODE or M.GAME_MODE == "blast" then return true end
+	local s = rawget(_G, "sys")
+	if s and s.get_config_int then
+		local cfg = s.get_config_int("pvp.blast_mode", -1)
+		if cfg == 1 then return true end
+		if cfg == 0 then return false end
+	end
+	return false
+end
+
 M.GRID = 7
 M.COLORS = { "red", "yellow", "purple", "green", "blue" }
 M.COLOR_INDEX = { red = 1, yellow = 2, purple = 3, green = 4, blue = 5 }

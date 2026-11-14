@@ -453,7 +453,15 @@ local function debug_setup(ds)
 				while s.status == "play" and s.turn_num <= 25 do
 					if s.turn == "player" then
 						local m = ai.pick_move(s.board, s.player, 2, s.rng)
-						if m then battle.player_swap(s, m.r1, m.c1, m.r2, m.c2) else s.turn = "enemy" end
+						local ok = false
+						if m then
+							if config.is_blast_mode() then
+								ok = battle.player_tap(s, m.r or m.r1, m.c or m.c1)
+							else
+								ok = battle.player_swap(s, m.r1, m.c1, m.r2, m.c2)
+							end
+						end
+						if not ok then s.turn = "enemy" end
 						s.events = {}
 					else
 						battle.step_enemy(s)

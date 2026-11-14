@@ -140,7 +140,80 @@ function M.find_matches(grid)
 	return groups
 end
 
+-- Find orthogonal connected cluster of same color (Toon Blast / Collapse mode)
+function M.find_cluster(grid, r0, c0)
+	local cell = grid[r0] and grid[r0][c0]
+	if not is_movable(cell) then return {} end
+	local color = cell.color
+	local visited = {}
+	local cluster = {}
+	local queue = { { r = r0, c = c0 } }
+	visited[key(r0, c0)] = true
+
+	local dirs = { { -1, 0 }, { 1, 0 }, { 0, -1 }, { 0, 1 } }
+	local head = 1
+	while head <= #queue do
+		local p = queue[head]
+		head = head + 1
+		cluster[#cluster + 1] = p
+		for _, d in ipairs(dirs) do
+			local nr, nc = p.r + d[1], p.c + d[2]
+			if nr >= 1 and nr <= N and nc >= 1 and nc <= N then
+				local k = key(nr, nc)
+				if not visited[k] then
+					local g = grid[nr] and grid[nr][nc]
+					if is_movable(g) and g.color == color and not g.special then
+						visited[k] = true
+						queue[#queue + 1] = { r = nr, c = nc }
+					end
+				end
+			end
+		end
+	end
+	return cluster
+end
+
+function M.valid_blast_moves(grid)
+	local moves = {}
+	local visited = {}
+	for r = 1, N do
+		for c = 1, N do
+			local cell = grid[r] and grid[r][c]
+			if is_gem(cell) and not cell.ice then
+				if cell.special then
+					moves[#moves + 1] = {
+						r = r, c = c,
+						r1 = r, c1 = c,
+						r2 = r, c2 = c,
+						size = 1,
+						special = cell.special,
+						color = cell.color,
+						cells = { { r = r, c = c } },
+					}
+				elseif not visited[key(r, c)] then
+					local cluster = M.find_cluster(grid, r, c)
+					for _, p in ipairs(cluster) do visited[key(p.r, p.c)] = true end
+					if #cluster >= 2 then
+						moves[#moves + 1] = {
+							r = r, c = c,
+							r1 = r, c1 = c,
+							r2 = r, c2 = c,
+							size = #cluster,
+							color = cell.color,
+							cells = cluster,
+						}
+					end
+				end
+			end
+		end
+	end
+	return moves
+end
+
 function M.valid_moves(grid)
+	if config.is_blast_mode() then
+		return M.valid_blast_moves(grid)
+	end
 	local moves = {}
 	local dirs = { { 0, 1 }, { 1, 0 } }
 	for r = 1, N do
@@ -240,6 +313,56 @@ function M.tick_curses(b)
 	return { exploded = exploded, remaining = remaining }
 end
 
+local function generate_blast_board(b, rng_inst)
+	for attempt = 1, 30 do
+		for r = 1, N do
+			for c = 1, N do
+				if b.grid[r][c] and not b.grid[r][c].hole and not b.grid[r][c].stone then
+					b.grid[r][c] = nil
+				end
+			end
+		end
+
+		for r = 1, N do
+			for c = 1, N do
+				if not b.grid[r][c] then
+					local cands = {}
+					if c > 1 and is_gem(b.grid[r][c - 1]) then
+						cands[#cands + 1] = b.grid[r][c - 1].color
+					end
+					if r > 1 and is_gem(b.grid[r - 1][c]) then
+						cands[#cands + 1] = b.grid[r - 1][c].color
+					end
+
+					local col
+					if #cands > 0 and rng_inst:float() < 0.48 then
+						col = rng_inst:pick(cands)
+					else
+						col = random_color(rng_inst)
+					end
+					b.grid[r][c] = { color = col }
+				end
+			end
+		end
+
+		local valid = M.valid_blast_moves(b.grid)
+		if #valid >= 5 then
+			local colors_seen = {}
+			for _, v in ipairs(valid) do
+				if v.color then colors_seen[v.color] = true end
+			end
+			local count_cols = 0
+			for _ in pairs(colors_seen) do count_cols = count_cols + 1 end
+			if count_cols >= 3 then
+				return
+			end
+		end
+	end
+	if #M.valid_blast_moves(b.grid) < 3 then
+		M.shuffle_blast(b)
+	end
+end
+
 function M.new(rng_inst, cfg)
 	local b = { grid = {}, rng = rng_inst, cfg = cfg }
 	for r = 1, N do
@@ -257,21 +380,26 @@ function M.new(rng_inst, cfg)
 			end
 		end
 	end
-	for r = 1, N do
-		for c = 1, N do
-			if not b.grid[r][c] then
-				local col
-				for _ = 1, 20 do
-					col = random_color(rng_inst)
-					local h2 = c >= 3 and b.grid[r][c - 1] and b.grid[r][c - 2] and b.grid[r][c - 1].color == col and b.grid[r][c - 2].color == col
-					local v2 = r >= 3 and b.grid[r - 1][c] and b.grid[r - 2][c] and b.grid[r - 1][c].color == col and b.grid[r - 2][c].color == col
-					if not h2 and not v2 then break end
+
+	if config.is_blast_mode() then
+		generate_blast_board(b, rng_inst)
+	else
+		for r = 1, N do
+			for c = 1, N do
+				if not b.grid[r][c] then
+					local col
+					for _ = 1, 20 do
+						col = random_color(rng_inst)
+						local h2 = c >= 3 and b.grid[r][c - 1] and b.grid[r][c - 2] and b.grid[r][c - 1].color == col and b.grid[r][c - 2].color == col
+						local v2 = r >= 3 and b.grid[r - 1][c] and b.grid[r - 2][c] and b.grid[r - 1][c].color == col and b.grid[r - 2][c].color == col
+						if not h2 and not v2 then break end
+					end
+					b.grid[r][c] = { color = col }
 				end
-				b.grid[r][c] = { color = col }
 			end
 		end
+		if #M.valid_moves(b.grid) == 0 then M.shuffle(b) end
 	end
-	if #M.valid_moves(b.grid) == 0 then M.shuffle(b) end
 
 	if cfg then
 		if (cfg.empowered or 0) > 0 then
@@ -290,7 +418,45 @@ function M.new(rng_inst, cfg)
 	return b
 end
 
+function M.shuffle_blast(b)
+	for attempt = 1, 24 do
+		local pool = {}
+		local slots = {}
+		for r = 1, N do
+			for c = 1, N do
+				if is_gem(b.grid[r][c]) then
+					pool[#pool + 1] = b.grid[r][c]
+					slots[#slots + 1] = { r = r, c = c }
+				end
+			end
+		end
+		if attempt >= 16 then
+			for _, g in ipairs(pool) do g.ice = nil end
+		end
+		b.rng:shuffle(pool)
+		for idx, p in ipairs(slots) do
+			b.grid[p.r][p.c] = pool[idx]
+		end
+		if #M.valid_blast_moves(b.grid) >= 3 then return true end
+	end
+	for r = 1, N do
+		for c = 1, N - 1 do
+			if is_gem(b.grid[r][c]) and is_gem(b.grid[r][c + 1]) then
+				local col = b.grid[r][c].color or COLORS[1]
+				b.grid[r][c + 1].color = col
+				b.grid[r][c].ice = nil
+				b.grid[r][c + 1].ice = nil
+				if #M.valid_blast_moves(b.grid) >= 2 then return true end
+			end
+		end
+	end
+	return true
+end
+
 function M.shuffle(b)
+	if config.is_blast_mode() then
+		return M.shuffle_blast(b)
+	end
 	for attempt = 1, 24 do
 		local pool = {}
 		local slots = {}
@@ -367,6 +533,36 @@ local function expand_specials(grid, initial_map)
 						end
 					end
 				end
+			elseif sp == "prism" then
+				local counts = {}
+				for rr = 1, N do
+					for cc = 1, N do
+						local cl = grid[rr][cc]
+						if is_gem(cl) and cl.color and cl.color ~= "prism" then
+							counts[cl.color] = (counts[cl.color] or 0) + 1
+						end
+					end
+				end
+				local best_col = COLORS[1]
+				local best_cnt = -1
+				for _, col in ipairs(COLORS) do
+					if (counts[col] or 0) > best_cnt then
+						best_cnt = counts[col] or 0
+						best_col = col
+					end
+				end
+				for rr = 1, N do
+					for cc = 1, N do
+						local cl = grid[rr][cc]
+						if is_gem(cl) and cl.color == best_col then
+							local k = key(rr, cc)
+							if not initial_map[k] then
+								initial_map[k] = { r = rr, c = cc }
+								queue[#queue + 1] = initial_map[k]
+							end
+						end
+					end
+				end
 			end
 		end
 	end
@@ -394,7 +590,28 @@ local function apply_gravity_and_refill(b)
 		end
 		for r = 1, N do
 			if not b.grid[r][c] then
-				local gem = { color = random_color(b.rng) }
+				local gem_color
+				if config.is_blast_mode() then
+					local neighbor_colors = {}
+					if r > 1 and is_gem(b.grid[r - 1][c]) then
+						neighbor_colors[#neighbor_colors + 1] = b.grid[r - 1][c].color
+					end
+					if c > 1 and is_gem(b.grid[r][c - 1]) then
+						neighbor_colors[#neighbor_colors + 1] = b.grid[r][c - 1].color
+					end
+					if c < N and is_gem(b.grid[r][c + 1]) then
+						neighbor_colors[#neighbor_colors + 1] = b.grid[r][c + 1].color
+					end
+					if #neighbor_colors > 0 and b.rng:float() < 0.40 then
+						gem_color = b.rng:pick(neighbor_colors)
+					else
+						gem_color = random_color(b.rng)
+					end
+				else
+					gem_color = random_color(b.rng)
+				end
+
+				local gem = { color = gem_color }
 				if b.cfg and b.cfg.allow_empowered and b.rng:float() < 0.045 then
 					gem.empowered = true
 				end
@@ -604,12 +821,341 @@ function M.resolve_swap(b, r1, c1, r2, c2)
 	return run_cascades(b, prism_map, { r = r1, c = c1 }, { r = r2, c = c2 })
 end
 
+function M.resolve_single_special(b, r, c, sp)
+	local map = {}
+	map[key(r, c)] = { r = r, c = c }
+	if sp == "line_h" then
+		for cc = 1, N do
+			if b.grid[r][cc] and not b.grid[r][cc].hole then
+				map[key(r, cc)] = { r = r, c = cc }
+			end
+		end
+	elseif sp == "line_v" then
+		for rr = 1, N do
+			if b.grid[rr][c] and not b.grid[rr][c].hole then
+				map[key(rr, c)] = { r = rr, c = c }
+			end
+		end
+	elseif sp == "bomb" then
+		for dr = -1, 1 do
+			for dc = -1, 1 do
+				local rr, cc = r + dr, c + dc
+				if rr >= 1 and rr <= N and cc >= 1 and cc <= N then
+					if b.grid[rr][cc] and not b.grid[rr][cc].hole then
+						map[key(rr, cc)] = { r = rr, c = cc }
+					end
+				end
+			end
+		end
+	elseif sp == "prism" then
+		local counts = {}
+		for rr = 1, N do
+			for cc = 1, N do
+				local cell = b.grid[rr][cc]
+				if is_gem(cell) and cell.color and cell.color ~= "prism" then
+					counts[cell.color] = (counts[cell.color] or 0) + 1
+				end
+			end
+		end
+		local best_col = COLORS[1]
+		local best_cnt = -1
+		for _, col in ipairs(COLORS) do
+			if (counts[col] or 0) > best_cnt then
+				best_cnt = counts[col] or 0
+				best_col = col
+			end
+		end
+		for rr = 1, N do
+			for cc = 1, N do
+				local cell = b.grid[rr][cc]
+				if is_gem(cell) and cell.color == best_col then
+					map[key(rr, cc)] = { r = rr, c = cc }
+				end
+			end
+		end
+	end
+	return map
+end
+
+function M.resolve_special_combo(b, s1, s2)
+	local map = {}
+	map[key(s1.r, s1.c)] = { r = s1.r, c = s1.c }
+	map[key(s2.r, s2.c)] = { r = s2.r, c = s2.c }
+
+	local sp1, sp2 = s1.special, s2.special
+	if sp1 == "prism" and sp2 == "prism" then
+		-- Two prisms: clear entire board
+		for rr = 1, N do
+			for cc = 1, N do
+				if b.grid[rr][cc] and not b.grid[rr][cc].hole then
+					map[key(rr, cc)] = { r = rr, c = cc }
+				end
+			end
+		end
+	elseif sp1 == "prism" or sp2 == "prism" then
+		-- Prism + Special: transform all gems of most common color into that special and detonate
+		local other = (sp1 == "prism") and sp2 or sp1
+		local counts = {}
+		for rr = 1, N do
+			for cc = 1, N do
+				local cell = b.grid[rr][cc]
+				if is_gem(cell) and cell.color and cell.color ~= "prism" then
+					counts[cell.color] = (counts[cell.color] or 0) + 1
+				end
+			end
+		end
+		local best_col = COLORS[1]
+		local best_cnt = -1
+		for _, col in ipairs(COLORS) do
+			if (counts[col] or 0) > best_cnt then
+				best_cnt = counts[col] or 0
+				best_col = col
+			end
+		end
+		for rr = 1, N do
+			for cc = 1, N do
+				local cell = b.grid[rr][cc]
+				if is_gem(cell) and cell.color == best_col then
+					cell.special = other
+					map[key(rr, cc)] = { r = rr, c = cc }
+				end
+			end
+		end
+	elseif sp1 == "bomb" and sp2 == "bomb" then
+		-- Bomb + Bomb: 5x5 explosion
+		for dr = -2, 2 do
+			for dc = -2, 2 do
+				local rr, cc = s1.r + dr, s1.c + dc
+				if rr >= 1 and rr <= N and cc >= 1 and cc <= N then
+					if b.grid[rr][cc] and not b.grid[rr][cc].hole then
+						map[key(rr, cc)] = { r = rr, c = cc }
+					end
+				end
+			end
+		end
+	elseif (sp1 == "bomb" and (sp2 == "line_h" or sp2 == "line_v")) or (sp2 == "bomb" and (sp1 == "line_h" or sp1 == "line_v")) then
+		-- Bomb + Line: 3 rows and 3 columns
+		for dr = -1, 1 do
+			local rr = s1.r + dr
+			if rr >= 1 and rr <= N then
+				for cc = 1, N do
+					if b.grid[rr][cc] and not b.grid[rr][cc].hole then map[key(rr, cc)] = { r = rr, c = cc } end
+				end
+			end
+		end
+		for dc = -1, 1 do
+			local cc = s1.c + dc
+			if cc >= 1 and cc <= N then
+				for rr = 1, N do
+					if b.grid[rr][cc] and not b.grid[rr][cc].hole then map[key(rr, cc)] = { r = rr, c = cc } end
+				end
+			end
+		end
+	else
+		-- Line + Line: cross
+		for cc = 1, N do
+			if b.grid[s1.r][cc] and not b.grid[s1.r][cc].hole then map[key(s1.r, cc)] = { r = s1.r, c = cc } end
+		end
+		for rr = 1, N do
+			if b.grid[rr][s1.c] and not b.grid[rr][s1.c].hole then map[key(rr, s1.c)] = { r = rr, c = s1.c } end
+		end
+	end
+	return map
+end
+
+local function run_blast(b, initial_clear_map, spawned_spec)
+	local steps = {}
+	local clear_list = expand_specials(b.grid, initial_clear_map)
+	local spawned_specs = spawned_spec and { spawned_spec } or {}
+
+	local cleared_info = {}
+	local counts = { red = 0, yellow = 0, purple = 0, green = 0, blue = 0 }
+	local direct_stone = {}
+	local stones_hit, stones_broken, melted, curse_cells, empowered_cells = {}, {}, {}, {}, {}
+	local curses_cleared = 0
+
+	for _, p in ipairs(clear_list) do
+		local g = b.grid[p.r][p.c]
+		if g then
+			if g.stone then
+				direct_stone[key(p.r, p.c)] = true
+				g.hp = (g.hp or 1) - 1
+				if g.hp <= 0 then
+					b.grid[p.r][p.c] = nil
+					stones_broken[#stones_broken + 1] = { r = p.r, c = p.c }
+				else
+					stones_hit[#stones_hit + 1] = { r = p.r, c = p.c, hp = g.hp }
+				end
+			elseif is_gem(g) then
+				if counts[g.color] then
+					counts[g.color] = counts[g.color] + (g.empowered and 2 or 1)
+				end
+				if g.empowered then
+					empowered_cells[#empowered_cells + 1] = { r = p.r, c = p.c, color = g.color }
+				end
+				if g.curse then
+					curses_cleared = curses_cleared + 1
+					curse_cells[#curse_cells + 1] = { r = p.r, c = p.c }
+				end
+				if g.ice then
+					melted[#melted + 1] = { r = p.r, c = p.c }
+				end
+				cleared_info[#cleared_info + 1] = {
+					r = p.r, c = p.c, color = g.color, special = g.special,
+					empowered = g.empowered, curse = g.curse, ice = g.ice,
+				}
+				b.grid[p.r][p.c] = nil
+			end
+		end
+	end
+
+	for _, sp in ipairs(spawned_specs) do
+		local prev = b.grid[sp.r][sp.c]
+		if counts[sp.color] then
+			counts[sp.color] = counts[sp.color] + ((prev and prev.empowered) and 2 or 1)
+		end
+		if prev and prev.empowered then
+			empowered_cells[#empowered_cells + 1] = { r = sp.r, c = sp.c, color = sp.color }
+		end
+		if prev and prev.curse then
+			curses_cleared = curses_cleared + 1
+			curse_cells[#curse_cells + 1] = { r = sp.r, c = sp.c }
+		end
+		if prev and prev.ice then
+			melted[#melted + 1] = { r = sp.r, c = sp.c }
+		end
+		b.grid[sp.r][sp.c] = { color = sp.color, special = sp.special }
+	end
+
+	-- Adjacent match/special hits crack stones and thaw nearby ice
+	local adj_seen = {}
+	local dirs = { { -1, 0 }, { 1, 0 }, { 0, -1 }, { 0, 1 } }
+	local function check_adj(r0, c0)
+		for _, d in ipairs(dirs) do
+			local nr, nc = r0 + d[1], c0 + d[2]
+			if nr >= 1 and nr <= N and nc >= 1 and nc <= N then
+				local k = key(nr, nc)
+				if not adj_seen[k] then
+					adj_seen[k] = true
+					local ng = b.grid[nr][nc]
+					if ng and ng.stone and not direct_stone[k] then
+						ng.hp = (ng.hp or 1) - 1
+						if ng.hp <= 0 then
+							b.grid[nr][nc] = nil
+							stones_broken[#stones_broken + 1] = { r = nr, c = nc }
+						else
+							stones_hit[#stones_hit + 1] = { r = nr, c = nc, hp = ng.hp }
+						end
+					elseif ng and ng.ice then
+						ng.ice = nil
+						melted[#melted + 1] = { r = nr, c = nc }
+					end
+				end
+			end
+		end
+	end
+	for _, p in ipairs(cleared_info) do check_adj(p.r, p.c) end
+	for _, sp in ipairs(spawned_specs) do check_adj(sp.r, sp.c) end
+
+	local falls, spawns = apply_gravity_and_refill(b)
+	steps[#steps + 1] = {
+		cascade = 1,
+		cleared = cleared_info,
+		counts = counts,
+		specials = spawned_specs,
+		falls = falls,
+		spawns = spawns,
+		stones_hit = stones_hit,
+		stones_broken = stones_broken,
+		melted = melted,
+		curses_cleared = curses_cleared,
+		curse_cells = curse_cells,
+		empowered_cells = empowered_cells,
+	}
+
+	local shuffled = false
+	if #M.valid_moves(b.grid) == 0 then
+		M.shuffle(b)
+		shuffled = true
+	end
+	return steps, shuffled
+end
+
+-- Resolve tap in Toon Blast / Collapse mode: cluster blast or special detonation
+function M.resolve_tap(b, r, c)
+	if r < 1 or r > N or c < 1 or c > N then return nil end
+	local g = b.grid[r] and b.grid[r][c]
+	if not is_movable(g) then return nil end
+
+	local clear_map = {}
+	local spawned_spec = nil
+
+	if g.special then
+		-- Check for adjacent special combo
+		local adj_spec = nil
+		local dirs = { { -1, 0 }, { 1, 0 }, { 0, -1 }, { 0, 1 } }
+		for _, d in ipairs(dirs) do
+			local nr, nc = r + d[1], c + d[2]
+			if nr >= 1 and nr <= N and nc >= 1 and nc <= N then
+				local ng = b.grid[nr][nc]
+				if is_gem(ng) and ng.special then
+					adj_spec = { r = nr, c = nc, special = ng.special, color = ng.color }
+					break
+				end
+			end
+		end
+
+		if adj_spec then
+			clear_map = M.resolve_special_combo(b, { r = r, c = c, special = g.special }, adj_spec)
+		else
+			clear_map = M.resolve_single_special(b, r, c, g.special)
+		end
+	else
+		local cluster = M.find_cluster(b.grid, r, c)
+		if #cluster < 2 then return nil end
+
+		local cluster_size = #cluster
+		local spawn_type = nil
+		if cluster_size >= 9 then
+			spawn_type = "prism"
+		elseif cluster_size >= 7 then
+			spawn_type = "bomb"
+		elseif cluster_size >= 5 then
+			spawn_type = (b.rng:float() < 0.5) and "line_h" or "line_v"
+		end
+
+		if spawn_type then
+			spawned_spec = {
+				r = r,
+				c = c,
+				color = (spawn_type == "prism") and "prism" or g.color,
+				special = spawn_type,
+			}
+			for _, p in ipairs(cluster) do
+				if not (p.r == r and p.c == c) then
+					clear_map[key(p.r, p.c)] = p
+				end
+			end
+		else
+			for _, p in ipairs(cluster) do
+				clear_map[key(p.r, p.c)] = p
+			end
+		end
+	end
+
+	return run_blast(b, clear_map, spawned_spec)
+end
+
 function M.use_hammer(b, r, c)
 	local g = b.grid[r] and b.grid[r][c]
 	if not g or g.hole then return nil end
 	if g.stone then g.hp = 1 end
 	local map = { [key(r, c)] = { r = r, c = c } }
-	return run_cascades(b, map)
+	if config.is_blast_mode() then
+		return run_blast(b, map, nil)
+	else
+		return run_cascades(b, map)
+	end
 end
 
 -- Shallow copy of grid for AI simulation
