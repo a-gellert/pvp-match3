@@ -364,10 +364,22 @@ function Slice-GridBlack($path, $cols, $rows, $names, $maxW, $maxH, $square = $f
     }
 }
 
-$brain = "C:\Users\gellert.alexandr\.gemini\antigravity\brain\88367b99-92d2-4980-b442-d3f33b7ab303"
+$brainDirs = @(
+    "C:\Users\User\.gemini\antigravity\brain\0b69f11e-c06d-437e-a7fc-398011c49e7e",
+    "C:\Users\gellert.alexandr\.gemini\antigravity\brain\88367b99-92d2-4980-b442-d3f33b7ab303"
+)
 function Latest($pattern) {
-    return (Get-ChildItem $brain -Filter $pattern | Sort-Object LastWriteTime -Descending | Select-Object -First 1).FullName
+    foreach ($b in $brainDirs) {
+        if (Test-Path $b) {
+            $f = (Get-ChildItem $b -Filter $pattern | Sort-Object LastWriteTime -Descending | Select-Object -First 1)
+            if ($f) { return $f.FullName }
+        }
+    }
+    return $null
 }
+
+$blastCubes = Latest "gem_cubes_spritesheet_*.jpg"
+if ($blastCubes) { Slice-RowAuto $blastCubes @("blast_red","blast_yellow","blast_purple","blast_green","blast_blue") 104 104 $true $false }
 
 $gems = Latest "match3_crystals_*.jpg"
 if ($gems) { Slice-GridWhite $gems 3 2 @("gem_red","gem_yellow","gem_purple","gem_green","gem_blue","gem_prism") 104 104 $true $true }
