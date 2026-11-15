@@ -20,7 +20,7 @@
       :with_symbols false
     }
     :last-bundle-command :bundle-poki
-    :output-directory "D:\\DProjects\\pvp-match3\\pvp"
+    :output-directory "D:\\DProjects\\pvp-match3\\pvp\\poki"
     :poki {
       :architectures #{
         "wasm-web"

@@ -44,7 +44,7 @@ input_multitouch = touch_multi
 no_auto_input = 1
 
 [project]
-title = Gem Vanguard
+title = GemVanguard
 version = 1.2.0
 bundle_resources = /bundle_res
 dependencies#0 = https://github.com/defold/extension-poki-sdk/archive/3e0c3296e6c4a27b99387d9c54d06626daa94b89.zip
