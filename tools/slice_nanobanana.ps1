@@ -365,9 +365,11 @@ function Slice-GridBlack($path, $cols, $rows, $names, $maxW, $maxH, $square = $f
 }
 
 $brainDirs = @(
+    "C:\Users\User\.gemini\antigravity\brain\ad9cc988-1ffe-4a61-9a8f-9c6bbf7ad4ab",
     "C:\Users\User\.gemini\antigravity\brain\0b69f11e-c06d-437e-a7fc-398011c49e7e",
     "C:\Users\gellert.alexandr\.gemini\antigravity\brain\88367b99-92d2-4980-b442-d3f33b7ab303"
 )
+$brain = $brainDirs[0]
 function Latest($pattern) {
     foreach ($b in $brainDirs) {
         if (Test-Path $b) {
@@ -377,6 +379,9 @@ function Latest($pattern) {
     }
     return $null
 }
+
+$uiIcons = Latest "game_ui_icons_spritesheet_*.jpg"
+if ($uiIcons) { Slice-GridWhite $uiIcons 3 2 @("icon_gold","icon_diamond","icon_prestige","icon_heart","icon_shield","icon_sword") 96 96 $true $false }
 
 $blastCubes = Latest "gem_cubes_spritesheet_*.jpg"
 if ($blastCubes) { Slice-RowAuto $blastCubes @("blast_red","blast_yellow","blast_purple","blast_green","blast_blue") 104 104 $true $false }

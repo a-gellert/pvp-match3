@@ -87,12 +87,12 @@
         :scene
       ]
       [
-        "/game.project"
-        :form
-      ]
-      [
         "/main/modules/config.lua"
         :code
+      ]
+      [
+        "/game.project"
+        :form
       ]
     ]
   }
