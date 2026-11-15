@@ -83,16 +83,16 @@
         :html
       ]
       [
-        "/main/modules/config.lua"
-        :code
-      ]
-      [
         "/promo/gem_vanguard_portrait_800x1200.png"
         :scene
       ]
       [
         "/game.project"
         :form
+      ]
+      [
+        "/main/modules/config.lua"
+        :code
       ]
     ]
   }

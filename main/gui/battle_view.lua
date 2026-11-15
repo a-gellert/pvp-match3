@@ -1196,10 +1196,14 @@ local function schedule_effect(ev, t)
 		at(t, function()
 			audio.play("levelup")
 			for _, col in ipairs(LANES) do rise_unit("player", col) end
+			gui.animate(st.faces.player.face, "color.w", 1, gui.EASING_OUTQUAD, dur(0.3))
 			ui.ring(st.fx_layer, st.faces.player.x, st.strip_y, 220, ui.GREEN, dur(0.45))
+			ui.banner(st.fx_layer, i18n.t("REVIVE_TITLE"), st.board_cx, st.board_cy, 60, ui.GOLD, dur(0.9))
+			ui.burst(st.fx_layer, st.board_cx, st.board_cy, 18, ui.GOLD, 220, 32)
 			sync_disp()
+			turn_visuals(true)
 		end)
-		return t + dur(0.40)
+		return t + dur(0.65)
 	elseif k == "win" or k == "lose" then
 		local won = k == "win"
 		at(t + dur(0.15), function()

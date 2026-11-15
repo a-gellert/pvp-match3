@@ -164,13 +164,15 @@ B.win = function(app, root, data)
 
 	-- Buttons (Poki: plain buttons at least as prominent as the rewarded one, never green)
 	local by = -h / 2 + 150
-	local can_next = s and s.mode == "campaign" and (progress.data.max_stage_unlocked or 1) > (data.stage_id or 0)
-		and (data.stage_id or 0) < campaign.COUNT
+	local is_pvp = s and s.mode == "pvp"
+	local is_camp = s and s.mode == "campaign"
+	local can_next = is_camp and (data.stage_id or 0) < campaign.COUNT
 	local ob_battles = not progress.data.onboarding_done and progress.data.onboarding_step == 0
 	if ob_battles and can_next then
 		-- Seamless first 3 battles: straight into the next fight without Hub bounce.
-		ui.btn(p, "btn_gold", 0, by - 36, w - 120, 82, i18n.t("NEXT_GO"), 30, function() app.next_stage() end,
-			{ icon = "icon_play", icon_size = 44, pulse = true })
+		ui.btn(p, "btn_gold", 0, by - 36, w - 120, 82, i18n.t("NEXT_GO"), 30, function()
+			app.next_stage(data.stage_id)
+		end, { icon = "icon_play", icon_size = 44, pulse = true })
 	elseif not progress.data.onboarding_done then
 		-- Stage 3 won: open the Hub with chests, cards and prestige unlocked.
 		ui.btn(p, "btn_gold", 0, by - 36, w - 120, 82, i18n.t("OPEN_HUB"), 30, function()
@@ -178,52 +180,105 @@ B.win = function(app, root, data)
 			app.show_hub("home")
 		end, { icon = "icon_cards", icon_size = 44, pulse = true })
 	else
-		if can_next then
-			ui.btn(p, "btn_gold", 0, by, w - 120, 76, i18n.t("NEXT_STAGE"), 28, function() app.next_stage() end, { icon = "icon_play", icon_size = 40 })
+		-- Primary action button: seamless continuation
+		if is_pvp then
+			ui.btn(p, "btn_gold", 0, by, w - 120, 76, i18n.t("NEXT_OPPONENT"), 28, function()
+				app.close_popup(true)
+				app.start_pvp_search()
+			end, { icon = "icon_play", icon_size = 40, pulse = true })
+		elseif can_next then
+			ui.btn(p, "btn_gold", 0, by, w - 120, 76, i18n.t("NEXT_STAGE"), 28, function()
+				app.next_stage(data.stage_id)
+			end, { icon = "icon_play", icon_size = 40, pulse = true })
 		else
-			ui.btn(p, "btn_gold", 0, by, w - 120, 76, i18n.t("CONTINUE"), 28, function()
+			local lbl = is_camp and "REPLAY" or "CONTINUE"
+			ui.btn(p, "btn_gold", 0, by, w - 120, 76, i18n.t(lbl), 28, function()
+				if is_camp then
+					app.retry_battle()
+				else
+					app.close_popup(true)
+					app.show_hub("home")
+				end
+			end, { icon = is_camp and "icon_play" or nil, icon_size = 38 })
+		end
+
+		local half = (w - 140) / 2
+		if not data.doubled and (data.gold or 0) > 0 then
+			ui.btn(p, "btn_dark", -half / 2 - 10, by - 88, half, 66, i18n.t("TO_HUB"), 22, function()
 				app.close_popup(true)
 				app.show_hub("home")
 			end)
-		end
-		local half = (w - 140) / 2
-		ui.btn(p, "btn_dark", -half / 2 - 10, by - 88, half, 66, i18n.t("TO_HUB"), 22, function()
-			app.close_popup(true)
-			app.show_hub("home")
-		end)
-		if not data.doubled and (data.gold or 0) > 0 then
 			ui.btn(p, "btn_purple", half / 2 + 10, by - 88, half, 66, i18n.t("DOUBLE_GOLD"), 22, function()
 				app.reward_double_gold(data)
 			end, { icon = "icon_ad", icon_size = 30 })
+		else
+			ui.btn(p, "btn_dark", 0, by - 88, w - 140, 66, i18n.t("TO_HUB"), 22, function()
+				app.close_popup(true)
+				app.show_hub("home")
+			end)
 		end
 	end
 end
 
 B.lose = function(app, root, data)
-	local p, w, h = panel(root, app, 580, 640, i18n.t("DEFEAT"))
+	local need_h = data.can_revive and 680 or 600
+	local p, w, h = panel(root, app, 580, need_h, i18n.t("DEFEAT"))
 	audio.play("lose")
-	local face = ui.box(p, "face_hero", 0, h / 2 - 150, 130, 130, V4(0.7, 0.6, 0.65, 1))
+	local face = ui.box(p, "face_hero", 0, h / 2 - 130, 110, 110, V4(0.7, 0.6, 0.65, 1))
 	ui.shake(face, 12)
-	local y = h / 2 - 250
-	ui.box(p, "icon_gold", -150, y, 48, 48)
-	ui.text(p, "+" .. (data.gold or 0), -90, y, 30, ui.GOLD)
-	ui.box(p, "icon_prestige", 60, y, 48, 48)
-	ui.text(p, tostring(data.prestige_delta or 0), 130, y, 30, ui.RED)
-	local tips = { "TIP_1", "TIP_2", "TIP_3", "TIP_4", "TIP_5" }
-	ui.label(p, i18n.t(tips[math.random(1, #tips)]), 0, y - 70, 19, ui.DIM, w - 70, { lines = 2 })
-	local by = -h / 2 + 170
+	local y = h / 2 - 215
+	ui.box(p, "icon_gold", -140, y, 44, 44)
+	ui.text(p, "+" .. (data.gold or 0), -85, y, 28, ui.GOLD)
+	ui.box(p, "icon_prestige", 70, y, 44, 44)
+	ui.text(p, tostring(data.prestige_delta or 0), 130, y, 28, ui.RED)
+
+	local s = app.session
+	local is_ob = not progress.data.onboarding_done and progress.data.onboarding_step == 0
 	local half = (w - 140) / 2
-	if progress.data.onboarding_step == 0 then
-		ui.btn(p, "btn_gold", 0, by, w - 140, 76, i18n.t("RETRY"), 26, function() app.retry_battle() end, { pulse = true })
-	else
-		ui.btn(p, "btn_gold", -half / 2 - 10, by, half, 76, i18n.t("RETRY"), 26, function() app.retry_battle() end)
-		ui.btn(p, "btn_dark", half / 2 + 10, by, half, 76, i18n.t("TO_HUB"), 24, function() app.leave_battle("cards") end)
-	end
-	if data.can_revive then
-		-- Poki: the rewarded button is never bigger than the plain alternatives above it
-		ui.btn(p, "btn_purple", 0, by - 90, half, 66, i18n.t("SECOND_CHANCE"), 22, function()
+	local by = -h / 2 + 155
+
+	if data.can_revive and not is_ob then
+		-- Ragequit Rescue: Dedicated Second Chance card
+		local rcard = ui.slice(p, "card_rare", 0, y - 68, w - 70, 92, ui.WHITE, 16)
+		local r_glow = ui.glow(ui.box(rcard, "glow", 0, 0, w - 60, 102, V4(1, 0.8, 0.35, 0.25)))
+		ui.pulse(r_glow, 1.05, 0.8)
+		local ic = ui.icon(rcard, "icon_heart", -(w - 70) / 2 + 38, 0, 46)
+		ui.bob(ic, 4, 0.7)
+		local streak = progress.data.streak or 0
+		local desc = i18n.t("REVIVE_DESC")
+		if s and s.mode == "pvp" and streak > 0 then
+			desc = desc .. " • " .. i18n.t("REVIVE_STREAK_SAVED", { n = streak })
+		end
+		ui.label(rcard, i18n.t("REVIVE_TITLE"), 20, 16, 21, ui.GOLD, w - 160)
+		ui.label(rcard, desc, 20, -14, 16, ui.WHITE, w - 160)
+
+		-- Poki: rewarded button (REVIVE) has a non-rewarded alternative (RETRY) of the exact same size
+		ui.btn(p, "btn_gold", -half / 2 - 10, by, half, 74, i18n.t("RETRY"), 26, function()
+			app.retry_battle()
+		end, { icon = "icon_play", icon_size = 36 })
+
+		ui.btn(p, "btn_purple", half / 2 + 10, by, half, 74, i18n.t("REVIVE_BTN"), 25, function()
 			app.reward_second_chance()
-		end, { icon = "icon_ad", icon_size = 32 })
+		end, { icon = "icon_ad", icon_size = 34, pulse = true })
+
+		ui.btn(p, "btn_dark", 0, by - 80, w - 140, 58, i18n.t("TO_HUB"), 22, function()
+			app.leave_battle("cards")
+		end)
+	else
+		local tips = { "TIP_1", "TIP_2", "TIP_3", "TIP_4", "TIP_5" }
+		ui.label(p, i18n.t(tips[math.random(1, #tips)]), 0, y - 60, 19, ui.DIM, w - 70, { lines = 2 })
+		if is_ob then
+			ui.btn(p, "btn_gold", 0, by - 10, w - 140, 76, i18n.t("RETRY"), 26, function()
+				app.retry_battle()
+			end, { pulse = true, icon = "icon_play", icon_size = 38 })
+		else
+			ui.btn(p, "btn_gold", -half / 2 - 10, by, half, 76, i18n.t("RETRY"), 26, function()
+				app.retry_battle()
+			end, { icon = "icon_play", icon_size = 36 })
+			ui.btn(p, "btn_dark", half / 2 + 10, by, half, 76, i18n.t("TO_HUB"), 24, function()
+				app.leave_battle("cards")
+			end)
+		end
 	end
 end
 

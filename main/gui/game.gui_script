@@ -333,8 +333,13 @@ function app.retry_battle()
 	end
 end
 
-function app.next_stage()
-	local nxt = math.min(campaign.COUNT, (progress.data.max_stage_unlocked or 1))
+function app.next_stage(stage_id)
+	local nxt
+	if stage_id then
+		nxt = math.min(campaign.COUNT, stage_id + 1)
+	else
+		nxt = math.min(campaign.COUNT, (progress.data.max_stage_unlocked or 1))
+	end
 	app.close_popup(true)
 	app.start_campaign(nxt, not progress.data.onboarding_done)
 end
@@ -420,6 +425,12 @@ local function debug_setup(ds)
 	elseif ds == "win" then
 		app.start_campaign(7, true)
 		app.open_popup("win", { won = true, gold = 124, prestige_delta = 25, chest_rarity = "silver", chest_slot = 4, stars = 3, new_stars = 3, stage_id = 7, stats = app.session.stats })
+	elseif ds == "pvp_win" then
+		app.launch_pvp(campaign.pvp_opponent(d.prestige, 5, progress.player_power()))
+		app.open_popup("win", { won = true, gold = 95, prestige_delta = 32, is_pvp = true, streak = 4, streak_bonus = 35, chest_rarity = "silver", chest_slot = 4, stats = app.session.stats })
+	elseif ds == "lose" then
+		app.start_campaign(7, true)
+		app.open_popup("lose", { gold = 30, prestige_delta = -18, can_revive = true })
 	elseif ds == "daily" then app.show_hub("home")
 	elseif ds == "trial" then app.show_hub("home"); app.open_popup("trial")
 	elseif ds == "trial_battle" then app.start_trial()
