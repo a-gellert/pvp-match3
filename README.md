@@ -5,7 +5,7 @@ Casual dark-fantasy **Match-3 battler** for [Poki](https://poki.com/), made with
 - 7×7 board shared with the enemy, 1–7 moves per turn, special gems, cascades and squad rune skills.
 - 18 squads (Clash Royale–style cards and upgrades), 30-stage campaign in 5 biomes with stars and bosses, PvP ladder with 6 leagues and a 40-step prestige road.
 - Daily Trial (a new boss every day with a win streak), daily quests, 7-day login calendar, free gift every 4 hours, daily shop deals, chest slots with timers.
-- Russian and English localization.
+- 10 Poki locales: English, Spanish, Portuguese (BR), Russian, Turkish, Polish, German, French, Italian and Dutch. The language is taken from `PokiSDK.getLanguage()` on the first run and can be changed in Settings.
 
 Design and architecture: [docs/DESIGN_DOC.md](docs/DESIGN_DOC.md). Rules for contributors and agents: [AGENTS.md](AGENTS.md).
 
@@ -32,15 +32,17 @@ Do not edit these by hand — regenerate them:
 
 ```sh
 node tools/gen_sprites.js        # main/assets/images, game.atlas, main/gui/sprite_sizes.lua
-node tools/gen_font.js           # main/assets/fonts/main.font (glyphs used in i18n.lua)
+node tools/gen_font.js           # main/assets/fonts/main.font (glyphs used by every .lua under main/)
+node tools/check_fonts.js        # fails when a string needs a glyph the TTF or main.font lacks
 node tools/gen_sounds.js         # SFX + music loop WAVs and main/sounds.go
 ```
 
 ## Smoke test
 
 ```sh
-node tools/web_smoke.js "bundle/web/Gem Vanguard" out --screen=home --size=405x720
-node tools/web_smoke.js "bundle/web/Gem Vanguard" out --size=405x720 --steps="wait:6;click:200,400;wait:2;shot:after"
+node tools/web_smoke.js "bundle/web/GemVanguard" out --screen=home --size=405x720
+node tools/web_smoke.js "bundle/web/GemVanguard" out --size=405x720 --steps="wait:6;click:200,400;wait:2;shot:after"
+node tools/web_smoke.js "bundle/web/GemVanguard" out --screen=language --lang=de --size=540x960
 ```
 
-`--screen` jumps to a debug state (`home`, `cards`, `map`, `shop`, `quests`, `battle`, `pvp`, `chest`, `win`, `road`, `stage`, `trial`, `trial_battle`, `trial_win`); the script prints the number of Lua/JS errors seen in the console.
+`--screen` jumps to a debug state (`home`, `cards`, `map`, `shop`, `quests`, `battle`, `pvp`, `chest`, `win`, `road`, `stage`, `trial`, `trial_battle`, `trial_win`, `settings`, `language`); `--lang` forces a locale. The script prints the number of Lua/JS errors seen in the console.

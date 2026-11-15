@@ -1,15 +1,16 @@
 // Browser smoke test: serves a web bundle, mocks the Poki SDK, drives Edge/Chrome over CDP.
 // Usage:
-//   node tools/web_smoke.js <bundle_dir> <out_dir> [--size=405x720] [--screen=home|cards|map|shop|quests|battle|pvp|chest|win|road|stage|trial|trial_battle|trial_win]
-//        [--secs=7] [--lang=ru] [--fresh=1] [--cfg=pvp.autoplay=1] [--steps="wait:2;click:200,640;shot:after;drag:100,300,160,300"]
-// Without --steps it waits --secs and saves <screen>_<WxH>.png. Lua errors (ERROR:SCRIPT) are counted.
+//   node tools/web_smoke.js <bundle_dir> <out_dir> [--size=405x720] [--screen=home|cards|map|shop|quests|battle|pvp|chest|win|road|stage|trial|trial_battle|trial_win|settings|language]
+//        [--secs=7] [--lang=ru] [--pokilang=de] [--fresh=1] [--cfg=pvp.autoplay=1] [--steps="wait:2;click:200,640;shot:after;drag:100,300,160,300"]
+// --lang forces progress.data.lang; --pokilang is what the mocked PokiSDK.getLanguage() returns
+// (pass --lang= to test first-run detection from the Poki SDK).// Without --steps it waits --secs and saves <screen>_<WxH>.png. Lua errors (ERROR:SCRIPT) are counted.
 const fs = require('fs');
 const path = require('path');
 const http = require('http');
 const { spawn } = require('child_process');
 
 const [, , BUNDLE, OUT, ...rest] = process.argv;
-const opt = { size: '405x720', secs: '7', screen: '', lang: 'ru', fresh: '1', steps: '' };
+const opt = { size: '405x720', secs: '7', screen: '', lang: 'ru', fresh: '1', steps: '', pokilang: 'en' };
 for (const a of rest) {
   const m = a.match(/^--(\w+)=(.*)$/);
   if (m) opt[m[1]] = m[2];
@@ -48,13 +49,14 @@ window.PokiSDK = {
   measure(a, b, c) { console.log('[poki] measure', a, b, c); },
   setDebug() {}, captureError(e) { console.log('[poki] err', e); },
   getURLParam() { return null; }, getDeviceInfo() { return { category: 'mobile' }; }, movePill() {},
+  getLanguage() { return '__POKI_LANGUAGE__'; },
 };
 window.addEventListener('load', () => setTimeout(() => { if (window.poki_sdk_loaded) poki_sdk_loaded(); }, 40));
 </script>`;
 
 function patchedIndex() {
   let html = fs.readFileSync(path.join(BUNDLE, 'index.html'), 'utf8');
-  html = html.replace(/<script[^>]*poki-sdk[^>]*><\/script>/, POKI_MOCK);
+  html = html.replace(/<script[^>]*poki-sdk[^>]*><\/script>/, POKI_MOCK.replace('__POKI_LANGUAGE__', opt.pokilang));
   const args = [];
   if (opt.fresh === '1') args.push('--config=pvp.fresh=1');
   if (opt.screen) args.push(`--config=pvp.debug_screen=${opt.screen}`);

@@ -381,7 +381,7 @@ function Latest($pattern) {
 }
 
 $uiIcons = Latest "game_ui_icons_spritesheet_*.jpg"
-if ($uiIcons) { Slice-GridWhite $uiIcons 3 2 @("icon_gold","icon_diamond","icon_prestige","icon_heart","icon_shield","icon_sword") 96 96 $true $false }
+if ($uiIcons) { Slice-GridWhite $uiIcons 3 2 @("icon_gold","icon_diamond","icon_prestige","icon_heart","icon_shield","icon_sword") 64 64 $true $false }
 
 $blastCubes = Latest "gem_cubes_spritesheet_*.jpg"
 if ($blastCubes) { Slice-RowAuto $blastCubes @("blast_red","blast_yellow","blast_purple","blast_green","blast_blue") 104 104 $true $false }
@@ -431,19 +431,19 @@ if ($vfx2) { Slice-GridBlack $vfx2 2 2 @("proj_fire","proj_lightning","proj_veno
 
 $arena = Latest "arena_backdrop_*.jpg"
 if ($arena) {
-    [SpriteProcessor]::SaveResizedOpaque($arena, "$ArtDir/arena_bg.png", 512, 256)
+    [SpriteProcessor]::SaveResizedOpaque($arena, "$ArtDir/arena_bg.png", 384, 192)
     Write-Host "Saved arena_bg.png"
 }
 
 $arenaLava = Latest "volcanic_arena_backdrop_*.jpg"
 if ($arenaLava) {
-    [SpriteProcessor]::SaveResizedOpaque($arenaLava, "$ArtDir/arena_bg_lava.png", 512, 256)
+    [SpriteProcessor]::SaveResizedOpaque($arenaLava, "$ArtDir/arena_bg_lava.png", 384, 192)
     Write-Host "Saved arena_bg_lava.png"
 }
 
 $arenaVoid = Latest "astral_void_crypt_arena_*.jpg"
 if ($arenaVoid) {
-    [SpriteProcessor]::SaveResizedOpaque($arenaVoid, "$ArtDir/arena_bg_void.png", 512, 256)
+    [SpriteProcessor]::SaveResizedOpaque($arenaVoid, "$ArtDir/arena_bg_void.png", 384, 192)
     Write-Host "Saved arena_bg_void.png"
 }
 
@@ -467,7 +467,7 @@ $boosts = Latest "booster_icons_spritesheet_*.jpg"
 if ($boosts) { Slice-RowAuto $boosts @("boost_shuffle","boost_hammer","boost_moves") 96 96 $true $false }
 
 $vfx3 = Latest "match3_vfx_overlays_2x2_*.jpg"
-if ($vfx3) { Slice-GridBlack $vfx3 2 2 @("spec_line_h","spec_line_v","spec_bomb","obs_ice") 128 128 $true }
+if ($vfx3) { Slice-GridBlack $vfx3 2 2 @("spec_line_h","spec_line_v","spec_bomb","obs_ice") 104 104 $true }
 
 $obs = Latest "dark_fantasy_match3_tiles_obstacles_*.jpg"
 if ($obs) {
@@ -480,7 +480,7 @@ if ($obs) {
     foreach ($o in $obsCfg) {
         $bmp = [SpriteProcessor]::LoadCrop($obs, $o[1], $o[2], $o[3], $o[4])
         [SpriteProcessor]::KeyWhite($bmp, $o[5], $o[6])
-        [SpriteProcessor]::SaveTight($bmp, "$ArtDir/$($o[0]).png", 128, 128, $true)
+        [SpriteProcessor]::SaveTight($bmp, "$ArtDir/$($o[0]).png", 104, 104, $true)
         $bmp.Dispose()
         Write-Host "Saved $($o[0]).png"
     }

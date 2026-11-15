@@ -1,19 +1,36 @@
-// Writes main/assets/fonts/main.font covering every glyph in main/modules/i18n.lua.
+// Writes main/assets/fonts/main.font covering every glyph shown by the game.
+// Sources: all .lua files under main/ (locale tables included) + printable ASCII.
+// Only glyphs that exist in Nunito-Black.ttf are emitted; run `node tools/check_fonts.js`
+// to fail the build when a translated string needs a glyph the TTF does not have.
 const fs = require('fs');
+const path = require('path');
+const util = require('./font_utils');
 
-let chars = '';
-for (let c = 32; c < 127; c++) chars += String.fromCharCode(c);
-const used = new Set([...fs.readFileSync('main/modules/i18n.lua', 'utf8')].filter(ch => ch.codePointAt(0) > 126));
-for (const ch of [...used]) { used.add(ch.toUpperCase()); used.add(ch.toLowerCase()); }
-chars += [...used].filter(ch => ch.length === 1 && ch.codePointAt(0) > 126).sort().join('');
+const TTF = path.join(util.ROOT, 'main/assets/fonts/Nunito-Black.ttf');
+const FONT = path.join(util.ROOT, 'main/assets/fonts/main.font');
 
-const esc = [...Buffer.from(chars, 'utf8')].map(b => {
-  if (b === 0x22) return '\\"';
-  if (b === 0x5c) return '\\\\';
-  if (b < 32 || b > 126) return '\\' + b.toString(8).padStart(3, '0');
-  return String.fromCharCode(b);
-}).join('');
+const ttf = util.ttfCodepoints(TTF);
+const used = util.collectTextChars(util.projectLuaFiles());
 
+const codepoints = new Set();
+for (let c = 32; c < 127; c++) codepoints.add(c);
+
+const skipped = [];
+for (const [cp, where] of used) {
+  if (ttf.has(cp)) {
+    codepoints.add(cp);
+    // Strings are often written in one case only ("Обычный" needs "ОБЫЧНЫЙ" too).
+    const ch = String.fromCodePoint(cp);
+    for (const variant of [ch.toUpperCase(), ch.toLowerCase()]) {
+      const vcp = variant.codePointAt(0);
+      if (variant.length === 1 && vcp > 126 && ttf.has(vcp)) codepoints.add(vcp);
+    }
+  } else {
+    skipped.push(`'${String.fromCodePoint(cp)}' U+${cp.toString(16).toUpperCase()} (${where})`);
+  }
+}
+
+const chars = [...codepoints].sort((a, b) => a - b).map((cp) => String.fromCodePoint(cp)).join('');
 const font = [
   'font: "/main/assets/fonts/Nunito-Black.ttf"',
   'material: "/builtins/fonts/font-df.material"',
@@ -23,8 +40,16 @@ const font = [
   'shadow_blur: 0',
   'output_format: TYPE_DISTANCE_FIELD',
   'render_mode: MODE_MULTI_LAYER',
-  `characters: "${esc}"`,
+  `characters: "${util.utf8Escape(chars)}"`,
   '',
 ].join('\n');
-fs.writeFileSync('main/assets/fonts/main.font', font);
-console.log(`${[...chars].length} glyphs written to main.font`);
+fs.writeFileSync(FONT, font);
+
+const atlas = util.estimateAtlas(util.readFont(FONT), codepoints.size);
+console.log(
+  `${codepoints.size} glyphs written to main.font (estimated ${atlas.width}x${atlas.height} SDF cache)`
+);
+if (skipped.length) {
+  console.warn(`WARNING: ${skipped.length} characters used in main/ are not in Nunito-Black.ttf:\n  ${skipped.join('\n  ')}`);
+  console.warn('Replace them or ship a font with those glyphs before shipping this locale.');
+}

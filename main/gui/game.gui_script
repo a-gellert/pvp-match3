@@ -438,6 +438,8 @@ local function debug_setup(ds)
 		app.start_trial()
 		app.open_popup("win", { won = true, gold = 290, is_trial = true, trial = { diamonds = 12, streak = 2 }, chest_rarity = "silver", chest_slot = 4, stats = app.session.stats })
 	elseif ds == "road" then app.show_hub("home"); app.open_popup("road")
+	elseif ds == "settings" then app.show_hub("home"); app.open_popup("settings")
+	elseif ds == "language" then app.show_hub("home"); app.open_popup("language", { from = "settings" })
 	elseif ds == "stage" then app.show_hub("map"); app.open_popup("stage", { id = 9 })
 	elseif ds == "sim" then
 		local rng = require "main.modules.rng"
@@ -501,7 +503,13 @@ function init(self)
 	progress.load(sys.get_config_int("pvp.fresh", 0) == 1)
 	local force_lang = sys.get_config_string("pvp.lang", "")
 	if force_lang ~= "" then progress.data.lang = force_lang end
-	i18n.set(progress.data.lang ~= "" and progress.data.lang or i18n.detect())
+	if progress.data.lang ~= "" then
+		i18n.set(progress.data.lang)
+	else
+		-- First run: the language Poki reports (or the OS locale) picks the UI language;
+		-- a manual choice in Settings overrides it and is stored in progress.data.lang.
+		i18n.set(i18n.detect(poki.language()))
+	end
 	audio.set(progress.data.sound, progress.data.music)
 	app.dw = sys.get_config_int("display.width", 540)
 	app.dh = sys.get_config_int("display.height", 960)

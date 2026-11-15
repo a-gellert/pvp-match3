@@ -75,6 +75,10 @@
           "/game.project"
           :form
         ]
+        [
+          "/main/assets/game.atlas"
+          :scene
+        ]
       ]
     ]
     :recent-files [
@@ -93,6 +97,10 @@
       [
         "/game.project"
         :form
+      ]
+      [
+        "/main/assets/game.atlas"
+        :scene
       ]
     ]
   }

@@ -913,14 +913,38 @@ local function settings_body(app, p, w, h, kind)
 		app.open_popup(kind)
 	end, { icon = d.music and "icon_music" or "icon_music_off", icon_size = 40 })
 	ui.btn(p, "btn_dark", 0, y - 90, w - 80, 70, i18n.t("LANGUAGE") .. ": " .. i18n.NAMES[i18n.lang], 22, function()
-		local nxt = i18n.lang == "ru" and "en" or "ru"
-		d.lang = nxt
-		i18n.set(nxt)
-		progress.save()
-		app.rebuild()
-		app.open_popup(kind)
+		app.open_popup("language", { from = kind })
 	end, { icon = "icon_globe", icon_size = 40 })
 	return y - 180
+end
+
+-- Language picker: 10 Poki locales the bundled font can render (see main/modules/i18n.lua).
+B.language = function(app, root, data)
+	local p, w, h = panel(root, app, 620, 640, i18n.t("LANGUAGE"))
+	local from = data.from or "settings"
+	close_btn(app, p, w, h, function() app.open_popup(from) end)
+	local cols, gap, bh = 2, 14, 68
+	local bw = (w - 100 - gap) / cols
+	local top = h / 2 - 96
+	for i, code in ipairs(i18n.LANGS) do
+		local col = (i - 1) % cols
+		local row = math.floor((i - 1) / cols)
+		local x = (col == 0) and -(bw + gap) / 2 or (bw + gap) / 2
+		local y = top - row * (bh + gap) - bh / 2
+		local active = code == i18n.lang
+		ui.btn(p, active and "btn_gold" or "btn_dark", x, y, bw, bh, i18n.NAMES[code], 22, function()
+			if active then
+				app.open_popup(from)
+				return
+			end
+			progress.data.lang = code
+			i18n.set(code)
+			progress.save()
+			-- Rebuild the screen under the popup so every label switches language.
+			app.refresh_then_popup(from)
+		end, { icon = active and "icon_check" or nil, icon_size = 34 })
+	end
+	return p
 end
 
 B.settings = function(app, root)
@@ -965,6 +989,8 @@ function M.on_back(app)
 		if progress.data.onboarding_step == 0 then app.retry_battle() else app.leave_battle() end
 	elseif kind == "pause" then
 		app.resume_battle()
+	elseif kind == "language" then
+		app.open_popup(app.popup.data and app.popup.data.from or "settings")
 	elseif kind == "pvp_search" or kind == "chest" then
 		return
 	else

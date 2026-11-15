@@ -45,6 +45,22 @@ function M.gameplay_stop()
 	if s and s.gameplay_stop then s.gameplay_stop() end
 end
 
+-- PokiSDK.getLanguage(): the player's language as a lowercase base code ("en", "pt"
+-- for pt-BR). The Defold binding does not expose it yet, so ask the JS SDK directly.
+-- Returns nil outside HTML5 (or before the SDK is loaded) so callers can fall back.
+function M.language()
+	local s = sdk()
+	if s and s.get_language then
+		local ok, res = pcall(s.get_language)
+		if ok and type(res) == "string" and res ~= "" then return res end
+	end
+	if html5 and html5.run then
+		local ok, res = pcall(html5.run, "window.PokiSDK&&PokiSDK.getLanguage?PokiSDK.getLanguage():''")
+		if ok and type(res) == "string" and res ~= "" then return res end
+	end
+	return nil
+end
+
 function M.measure(category, what, action)
 	local s = sdk()
 	if s and s.measure then pcall(s.measure, category, tostring(what), action) end
