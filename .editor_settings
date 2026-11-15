@@ -39,6 +39,30 @@
   }
   :scene {
     :resource-settings {
+      "/main/assets/game.atlas" {
+        :camera {
+          :focus-point [
+            1024.0
+            512.0
+            0.0
+          ]
+          :fov-x 5312.984615384616
+          :fov-y 2252.8
+          :mode-2d true
+          :position [
+            1024.0
+            512.0
+            5000.0
+          ]
+          :projection :orthographic
+          :rotation [
+            0.0
+            0.0
+            0.0
+            1.0
+          ]
+        }
+      }
       "/promo/gem_vanguard_portrait_800x1200.png" {
         :camera {
           :focus-point [

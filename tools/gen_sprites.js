@@ -215,7 +215,6 @@ for (const [name, cTop, cBot, rimTop, rimBot, studCol] of [
 }
 for (const [name, topGrad, botGrad, shadowBase, hiStroke] of [
   ['btn_gold',    '#ffc72c', '#f57c00', '#9c4200', '#fff4b8'],
-  ['btn_green',   '#4ade80', '#16a34a', '#14532d', '#bbf7d0'],
   ['btn_purple',  '#c084fc', '#7e22ce', '#4c1d95', '#f3e8ff'],
   ['btn_crimson', '#f87171', '#dc2626', '#7f1d1d', '#fecaca'],
   ['btn_dark',    '#475e82', '#22324a', '#121d2c', '#859ec4'],
@@ -932,10 +931,7 @@ function drawWolf(c, cx, cy, s) {
   c.fill(circle(20, 20, 15), vgrad(H('#ff6b7d'), H('#c41d3a'), 6, 34));
   c.save('badge_dot');
 }
-{ // icon_back (arrow left) / icon_play
-  const c = canvas(64, 64);
-  c.outlined(union(capsule(18, 32, 46, 32, 5), capsule(18, 32, 30, 20, 5), capsule(18, 32, 30, 44, 5)), H('#f3eee6'), 3);
-  c.save('icon_back');
+{ // icon_play
   const p = canvas(64, 64);
   p.outlined(poly([[22, 14], [50, 32], [22, 50]], 4), H('#f3eee6'), 3);
   p.save('icon_play');
@@ -1070,6 +1066,21 @@ const LAZY_SPRITES = {
   proj_lightning: 'proj_spell',
   proj_venom: 'proj_arrow',
   fx_reap: 'fx_slash',
+  // Late / unlockable squads
+  squad_red_wolves: 'squad_red_militia',
+  squad_red_berserk: 'squad_red_militia',
+  squad_red_drake: 'squad_red_militia',
+  squad_red_templar: 'squad_red_militia',
+  squad_yellow_crossbow: 'squad_yellow_archers',
+  squad_yellow_assassins: 'squad_yellow_archers',
+  squad_yellow_paladin: 'squad_yellow_archers',
+  squad_yellow_thunder: 'squad_yellow_archers',
+  squad_yellow_valkyrie: 'squad_yellow_archers',
+  squad_purple_necro: 'squad_purple_cultists',
+  squad_purple_banshee: 'squad_purple_cultists',
+  squad_purple_golem: 'squad_purple_cultists',
+  squad_purple_reaper: 'squad_purple_cultists',
+  squad_purple_witch: 'squad_purple_cultists',
 };
 
 const CORE = [];
