@@ -142,17 +142,18 @@ function M.load(fresh)
 			if loaded.onboarding_done and (loaded.stats.chests_earned or 0) < #config.EARLY_CHEST_DURATIONS then
 				loaded.stats.chests_earned = #config.EARLY_CHEST_DURATIONS
 			end
-			-- v3: faster web battles by default + guaranteed story squads for already cleared stages.
+			-- v3: faster web battles by default.
 			if (loaded.version or 0) < 3 then
 				loaded.battle_speed = 2
-				for stage_id, id in pairs(campaign.STORY_UNLOCKS) do
-					local c = loaded.cards[id]
-					if c and not c.unlocked and (loaded.max_stage_unlocked or 1) > stage_id then
-						c.unlocked = true
-						c.new = true
-						c.level = 1
-						c.count = 0
-					end
+			end
+			-- Guaranteed story squads for already cleared stages (idempotent for older saves).
+			for stage_id, id in pairs(campaign.STORY_UNLOCKS) do
+				local c = loaded.cards[id]
+				if c and not c.unlocked and (loaded.max_stage_unlocked or 1) > stage_id then
+					c.unlocked = true
+					c.new = true
+					c.level = 1
+					c.count = 0
 				end
 			end
 			loaded.version = M.VERSION
