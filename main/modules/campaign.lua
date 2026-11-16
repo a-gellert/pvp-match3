@@ -15,6 +15,18 @@ M.BIOMES = {
 }
 M.STAGES_PER_BIOME = 6
 
+-- Guaranteed story unlocks: a new squad joins the collection after these campaign wins.
+M.STORY_UNLOCKS = {
+	[2] = "yellow_assassins",
+	[4] = "purple_necro",
+	[6] = "purple_banshee",
+}
+
+function M.story_unlocks(stage_id)
+	local id = M.STORY_UNLOCKS[stage_id]
+	return id and { id } or {}
+end
+
 local POOLS = {
 	red = { "red_militia", "red_spearmen", "red_wolves", "red_pyromancer", "red_templar", "red_berserk", "red_drake" },
 	yellow = { "yellow_archers", "yellow_falconer", "yellow_crossbow", "yellow_assassins", "yellow_valkyrie", "yellow_paladin", "yellow_thunder" },
@@ -70,6 +82,12 @@ local function hp_ramp(n)
 	return 1
 end
 
+-- Early campaign pays noticeably better so the first upgrades land every 2 battles.
+local function stage_gold(n)
+	if n <= 6 then return 75 + n * 18 end
+	return 40 + n * 12
+end
+
 -- Rarer squads hit much harder (legendary ~2x a common). Pick the level that gives roughly the
 -- power of a reference common/rare squad at `lvl`, so variety does not spike difficulty.
 local POWER_REF = { red = 7, yellow = 12, purple = 18 }
@@ -84,21 +102,28 @@ end
 
 local function stage_board_cfg(n)
 	if n <= 3 then return nil end
-	if n == 4 then return { empowered = 2, allow_empowered = true }
-	elseif n == 5 then return { holes = { { 4, 4 } }, empowered = 1, allow_empowered = true }
-	elseif n == 6 then return { holes = { { 4, 4 } }, stones = { { 2, 2, 1 }, { 6, 6, 1 } }, empowered = 2, allow_empowered = true }
-	elseif n <= 8 then return { ice = 2, empowered = 1, allow_empowered = true, freeze_chance = 0.25 }
-	elseif n <= 10 then return { holes = { { 4, 4 } }, ice = 2, curses = 1, allow_empowered = true }
-	elseif n <= 12 then return { stones = { { 3, 3, 2 }, { 5, 5, 2 } }, ice = 2, curses = 1, empowered = 2, allow_empowered = true, freeze_chance = 0.30 }
-	elseif n <= 14 then return { stones = { { 2, 4, 2 }, { 6, 4, 2 } }, empowered = 2, allow_empowered = true }
-	elseif n <= 16 then return { holes = { { 3, 4 }, { 5, 4 } }, stones = { { 4, 2, 1 }, { 4, 6, 1 } }, allow_empowered = true }
-	elseif n <= 18 then return { holes = { { 4, 4 } }, stones = { { 2, 2, 2 }, { 2, 6, 2 }, { 6, 2, 2 }, { 6, 6, 2 } }, empowered = 2, allow_empowered = true }
-	elseif n <= 20 then return { holes = { { 4, 4 } }, curses = 2, allow_empowered = true, curse_chance = 0.25 }
-	elseif n <= 22 then return { ice = 3, curses = 1, empowered = 2, allow_empowered = true, freeze_chance = 0.30 }
-	elseif n <= 24 then return { holes = { { 4, 3 }, { 4, 5 } }, stones = { { 2, 4, 2 }, { 6, 4, 2 } }, curses = 2, allow_empowered = true, freeze_chance = 0.25 }
-	elseif n <= 27 then return { holes = { { 4, 4 } }, stones = { { 2, 2, 2 }, { 6, 6, 2 } }, ice = 2, curses = 1, empowered = 2, allow_empowered = true, freeze_chance = 0.25 }
-	else return { holes = { { 4, 4 } }, stones = { { 3, 3, 2 }, { 5, 5, 2 } }, ice = 2, curses = 2, empowered = 2, allow_empowered = true, freeze_chance = 0.30, curse_chance = 0.25 }
+	local cfg
+	if n == 4 then cfg = { empowered = 2, allow_empowered = true }
+	elseif n == 5 then cfg = { holes = { { 4, 4 } }, empowered = 1, allow_empowered = true }
+	elseif n == 6 then cfg = { holes = { { 4, 4 } }, stones = { { 2, 2, 1 }, { 6, 6, 1 } }, empowered = 2, allow_empowered = true }
+	elseif n <= 8 then cfg = { ice = 2, empowered = 1, allow_empowered = true, freeze_chance = 0.25 }
+	elseif n <= 10 then cfg = { holes = { { 4, 4 } }, ice = 2, curses = 1, allow_empowered = true }
+	elseif n <= 12 then cfg = { stones = { { 3, 3, 2 }, { 5, 5, 2 } }, ice = 2, curses = 1, empowered = 2, allow_empowered = true, freeze_chance = 0.30 }
+	elseif n <= 14 then cfg = { stones = { { 2, 4, 2 }, { 6, 4, 2 } }, empowered = 2, allow_empowered = true }
+	elseif n <= 16 then cfg = { holes = { { 3, 4 }, { 5, 4 } }, stones = { { 4, 2, 1 }, { 4, 6, 1 } }, allow_empowered = true }
+	elseif n <= 18 then cfg = { holes = { { 4, 4 } }, stones = { { 2, 2, 2 }, { 2, 6, 2 }, { 6, 2, 2 }, { 6, 6, 2 } }, empowered = 2, allow_empowered = true }
+	elseif n <= 20 then cfg = { holes = { { 4, 4 } }, curses = 2, allow_empowered = true, curse_chance = 0.25 }
+	elseif n <= 22 then cfg = { ice = 3, curses = 1, empowered = 2, allow_empowered = true, freeze_chance = 0.30 }
+	elseif n <= 24 then cfg = { holes = { { 4, 3 }, { 4, 5 } }, stones = { { 2, 4, 2 }, { 6, 4, 2 } }, curses = 2, allow_empowered = true, freeze_chance = 0.25 }
+	elseif n <= 27 then cfg = { holes = { { 4, 4 } }, stones = { { 2, 2, 2 }, { 6, 6, 2 } }, ice = 2, curses = 1, empowered = 2, allow_empowered = true, freeze_chance = 0.25 }
+	else cfg = { holes = { { 4, 4 } }, stones = { { 3, 3, 2 }, { 5, 5, 2 } }, ice = 2, curses = 2, empowered = 2, allow_empowered = true, freeze_chance = 0.30, curse_chance = 0.25 }
 	end
+	-- Chained crystals debut in the second biome (stage 7+): a 2-hit spatial puzzle.
+	if n >= 7 then
+		cfg.chains = (cfg.chains or 0) + ((n >= 19) and 3 or 2)
+		cfg.chain_hp = n >= 19 and 3 or 2
+	end
+	return cfg
 end
 
 local function gen_stage(n, hand)
@@ -124,14 +149,36 @@ local function gen_stage(n, hand)
 		moves = math.max(1, math.min(6, moves)),
 		diff = n <= 6 and 1 or (n < 14 and 2 or 3),
 		chest = chest,
-		gold = 40 + n * 12,
+		gold = stage_gold(n),
 		squads = squads,
 		boss = boss,
+		waves = nil,
 		board_cfg = stage_board_cfg(n),
 	}
 	if hand then
 		for k, v in pairs(hand) do
 			if k ~= "squads" then st[k] = v end
+		end
+	end
+	-- Key bosses arrive in 2-3 waves; the board is NOT reset between them.
+	if boss then
+		local wc = (n == 24 or n == 30) and 3 or ((n == 6 or n == 12 or n == 18) and 2 or 0)
+		if wc > 0 then
+			local total = math.floor(st.hp * (wc == 3 and 1.65 or 1.40) + 0.5)
+			local fracs = wc == 3 and { 0.32, 0.33, 0.35 } or { 0.45, 0.55 }
+			local waves = {}
+			for i = 1, wc do
+				waves[i] = {
+					hp = math.floor(total * fracs[i] + 0.5),
+					moves = math.max(1, st.moves - (wc - i)),
+					squads = st.squads,
+					name_key = st.name_key,
+					face = st.face,
+					boss = i == wc,
+				}
+			end
+			st.hp = total
+			st.waves = waves
 		end
 	end
 	return st
@@ -256,6 +303,47 @@ function M.trial_boss(day, max_unlocked, player_power)
 		squads = sq,
 		arena = M.BIOMES[biome_i].arena,
 		board_cfg = boss.board_cfg,
+	}
+end
+
+-- Endless Gauntlet: a 5-step run. Enemies scale with the step and blend with the player's build.
+function M.gauntlet_enemy(step, player_power, seed)
+	step = math.max(1, math.min(config.SURVIVAL.battles, step or 1))
+	local r = rng.new(seed or (step * 913 + 5))
+	local eq = math.min(M.COUNT, 2 + step * 4)
+	local lvl, moves, hp = M.expected_build(eq)
+	hp = hp * M.HP_K
+	if player_power then
+		hp = (hp + player_power.hp) / 2
+		moves = (moves + player_power.moves) / 2
+		lvl = (lvl + player_power.avg_lvl) / 2
+	end
+	local boss = step == config.SURVIVAL.battles
+	local scale = 0.82 + step * 0.11
+	hp = math.floor(hp * scale * (boss and 1.18 or 1) * (0.92 + r:float() * 0.16) + 0.5)
+	moves = math.max(1, math.min(6, math.floor(moves + 0.5)))
+	lvl = math.max(1, math.min(9, math.floor(lvl + 0.5)))
+	local tier = math.max(1, math.min(7, 2 + step))
+	local sq = {}
+	for _, col in ipairs(config.ATTACK_COLORS) do
+		local pool = POOLS[col]
+		local id = boss and pool[7] or pool[r:int(math.max(1, tier - 2), math.min(7, tier))]
+		sq[col] = { id = id, lvl = M.level_for_power(id, col, lvl + (boss and 1 or 0)) }
+	end
+	local arenas = { "arena_bg", "arena_bg_void", "arena_bg_lava" }
+	return {
+		is_survival = true,
+		step = step,
+		name_key = boss and "ENEMY_OVERLORD" or ENEMY_KEYS[math.min(#ENEMY_KEYS, 3 + step)],
+		face = boss and "face_dragon" or r:pick(PVP_FACES),
+		hp = hp,
+		moves = moves,
+		diff = math.min(3, 1 + math.floor(step / 2)),
+		gold = 55 + step * 22,
+		squads = sq,
+		arena = arenas[((step - 1) % #arenas) + 1],
+		board_cfg = stage_board_cfg(eq),
+		boss = boss,
 	}
 end
 

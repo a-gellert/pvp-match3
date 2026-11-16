@@ -29,18 +29,53 @@ M.COLOR_INDEX = { red = 1, yellow = 2, purple = 3, green = 4, blue = 5 }
 M.ATTACK_COLORS = { "red", "yellow", "purple" }
 
 M.BASE_HP = 160
-M.HP_PER_COMMANDER_LVL = 24
+M.HP_PER_COMMANDER_LVL = 32 -- early commander levels (up to level 8) feel much stronger
+M.HP_PER_COMMANDER_LVL_LATE = 24
 M.MOVE_HP_BONUS = 0.12  -- every extra move per turn also gives +12% commander HP
 M.SHIELD_CAP_RATIO = 0.65
 M.HEAL_RATIO = 0.10     -- green 3-match heals 10% of max HP
 M.SHIELD_RATIO = 0.10   -- blue 3-match gives 10% of max HP as shield
 M.FURY_TURN = 8 -- from turn 8+, damage +20% per turn so battles always end
 
+-- Commander ultimate ("Wrath of the Vanguard"): charges from big clusters, then hits all lanes
+-- and skips the enemy's next turn.
+M.ULT = {
+	max = 100,
+	cluster_charge = 12, -- clusters of 6+ gems
+	prism_charge = 25,
+	damage_mult = 2.0,   -- x total squad power
+}
+
+-- Endless Gauntlet: 5 fights with carried HP and one relic choice after each win.
+M.SURVIVAL = {
+	battles = 5,
+	heal_ratio = 0.12,
+	relic_choices = 3,
+	gold = 350,
+	diamonds = 15,
+	chest = "royal",
+}
+
+-- Run-only relics. Effects live in main/modules/battle.lua (see the relic checks there).
+M.RELICS = {
+	{ id = "green_shield", sprite = "gem_green", name_key = "RELIC_green_shield", desc_key = "RELICD_green_shield" },
+	{ id = "cross_rocket", sprite = "spec_line_h", name_key = "RELIC_cross_rocket", desc_key = "RELICD_cross_rocket" },
+	{ id = "odd_move",     sprite = "icon_move_orb", name_key = "RELIC_odd_move", desc_key = "RELICD_odd_move" },
+	{ id = "start_bomb",   sprite = "spec_bomb", name_key = "RELIC_start_bomb", desc_key = "RELICD_start_bomb" },
+	{ id = "iron_skin",    sprite = "icon_shield", name_key = "RELIC_iron_skin", desc_key = "RELICD_iron_skin" },
+	{ id = "bloodlust",    sprite = "icon_sword", name_key = "RELIC_bloodlust", desc_key = "RELICD_bloodlust" },
+	{ id = "fury_start",   sprite = "icon_fire", name_key = "RELIC_fury_start", desc_key = "RELICD_fury_start" },
+}
+M.RELIC_BY_ID = {}
+for _, r in ipairs(M.RELICS) do M.RELIC_BY_ID[r.id] = r end
+
 M.HP_SCALE = 1.35 -- global HP scale for both sides (battle length; enemies derive from commander_hp)
 
 -- Commander max HP from commander level (card upgrades), moves per turn and prestige.
 function M.commander_hp(cmd_lvl, moves, prestige)
-	local base = M.BASE_HP + ((cmd_lvl or 1) - 1) * M.HP_PER_COMMANDER_LVL + math.floor((prestige or 0) / 40) * 6
+	local lvl = cmd_lvl or 1
+	local per = lvl <= 8 and M.HP_PER_COMMANDER_LVL or M.HP_PER_COMMANDER_LVL_LATE
+	local base = M.BASE_HP + (lvl - 1) * per + math.floor((prestige or 0) / 40) * 6
 	return math.floor(base * M.HP_SCALE * (1 + M.MOVE_HP_BONUS * ((moves or 1) - 1)) + 0.5)
 end
 
@@ -63,10 +98,12 @@ M.EARLY_CHEST_DURATIONS = { 0, 0, 0, 20 }
 
 M.MAX_CHEST_SLOTS = 4
 M.CHEST_ORDER = { "wood", "silver", "royal" }
+-- Every victory cuts this many seconds off the chest that is currently unlocking.
+M.CHEST_WIN_CUT = 45
 M.CHESTS = {
 	wood = {
 		id = "wood",
-		duration = 30,        -- 30 seconds
+		duration = 10,        -- 10 seconds
 		gold_min = 35,
 		gold_max = 55,
 		cards_min = 2,
@@ -79,7 +116,7 @@ M.CHESTS = {
 	},
 	silver = {
 		id = "silver",
-		duration = 1800,      -- 30 minutes
+		duration = 120,       -- 2 minutes
 		gold_min = 95,
 		gold_max = 145,
 		cards_min = 6,
@@ -92,7 +129,7 @@ M.CHESTS = {
 	},
 	royal = {
 		id = "royal",
-		duration = 21600,     -- 6 hours
+		duration = 600,       -- 10 minutes
 		gold_min = 280,
 		gold_max = 420,
 		cards_min = 14,

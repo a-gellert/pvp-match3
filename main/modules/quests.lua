@@ -111,6 +111,33 @@ local function gen_deals(data, day)
 	return deals
 end
 
+-- Zero-cost daily card gift: gives the Shop tab a meaningful red dot.
+local FREE_COUNT = { common = 3, rare = 2, epic = 1 }
+local function gen_free_deal(day)
+	local r = rng.new(day * 977 + 11)
+	local roll = r:float()
+	local rar = roll < 0.05 and "epic" or (roll < 0.40 and "rare" or "common")
+	local pool = {}
+	for _, s in ipairs(squads.LIST) do
+		if s.rarity == rar then pool[#pool + 1] = s.id end
+	end
+	return { id = r:pick(pool), count = FREE_COUNT[rar] or 2, claimed = false }
+end
+
+-- Keep the daily block complete for saves created before newer daily fields existed.
+function M.ensure_daily(data)
+	local d = data.daily
+	if not d then
+		M.refresh(data)
+		return true
+	end
+	if not d.free_deal then
+		d.free_deal = gen_free_deal(d.day or M.today())
+		return true
+	end
+	return false
+end
+
 -- Make sure today's daily block exists; returns true when a new day started.
 function M.refresh(data)
 	local day = M.today()
@@ -121,6 +148,7 @@ function M.refresh(data)
 		quests = gen_quests(data, day),
 		bonus_claimed = false,
 		deals = gen_deals(data, day),
+		free_deal = gen_free_deal(day),
 		ad_diamonds = 0,
 	}
 	return true

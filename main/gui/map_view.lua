@@ -24,7 +24,16 @@ local function star_header(app, parent, cx, y, w)
 	ui.box(box, "icon_star", -w / 2 + 46, 4, 58, 58)
 	ui.label(box, i18n.t("STAR_CHEST"), -w / 2 + 86, 22, 20, ui.GOLD, w * 0.45, { pivot = gui.PIVOT_W })
 	local bw = w - 300
-	ui.bar(box, -w / 2 + 86 + bw / 2, -16, bw, 24, math.min(1, have / need), ui.YELLOW, { text = have .. " / " .. need, text_size = 16 })
+	local bar_x = -w / 2 + 86 + bw / 2
+	local bar_opts = { text_size = 16 }
+	if not ready then bar_opts.text = have .. " / " .. need end
+	ui.bar(box, bar_x, -16, bw, 24, math.min(1, have / need), ui.YELLOW, bar_opts)
+	if ready then
+		local gl = ui.glow(ui.box(box, "glow", bar_x, -16, math.min(bw * 0.8, 240), 38, V4(1, 0.85, 0.4, 0.35)))
+		ui.pulse(gl, 1.08, 0.5)
+		local rl = ui.label(box, i18n.t("STAR_CHEST_READY"), bar_x, -15, 17, ui.WHITE, bw - 12)
+		ui.pulse(rl, 1.06, 0.5)
+	end
 	local rarity = ((progress.data.star_chests or 0) + 1) % 3 == 0 and "royal" or "silver"
 	local _, b = ui.btn(box, ready and "btn_gold" or "btn_dark", w / 2 - 82, 0, 140, 76, ready and i18n.t("OPEN") or "", 20, function()
 		local res = progress.claim_star_chest()

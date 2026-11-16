@@ -9,7 +9,7 @@ local rng = require "main.modules.rng"
 local M = {}
 
 local SAVE_FILE = "gem_vanguard_save_v1"
-M.VERSION = 2
+M.VERSION = 3
 
 local function default_data()
 	local cards = {}
@@ -34,7 +34,7 @@ local function default_data()
 		lang = "",
 		sound = true,
 		music = true,
-		battle_speed = 1,
+		battle_speed = 2, -- web sessions default to the fast battle pace
 		slots = {
 			red = "red_militia",
 			yellow = "yellow_archers",
@@ -53,6 +53,7 @@ local function default_data()
 		login = { last_day = 0, count = 0 },
 		daily = nil,
 		trial = { won_day = 0, streak = 0, best = 0 }, -- Daily Trial: day id of the last win, days in a row
+		survival = { active = false, step = 0, hp = 0, relics = {}, best = 0, runs = 0 },
 	}
 end
 
@@ -141,6 +142,19 @@ function M.load(fresh)
 			if loaded.onboarding_done and (loaded.stats.chests_earned or 0) < #config.EARLY_CHEST_DURATIONS then
 				loaded.stats.chests_earned = #config.EARLY_CHEST_DURATIONS
 			end
+			-- v3: faster web battles by default + guaranteed story squads for already cleared stages.
+			if (loaded.version or 0) < 3 then
+				loaded.battle_speed = 2
+				for stage_id, id in pairs(campaign.STORY_UNLOCKS) do
+					local c = loaded.cards[id]
+					if c and not c.unlocked and (loaded.max_stage_unlocked or 1) > stage_id then
+						c.unlocked = true
+						c.new = true
+						c.level = 1
+						c.count = 0
+					end
+				end
+			end
 			loaded.version = M.VERSION
 			M.data = loaded
 		else
@@ -148,6 +162,7 @@ function M.load(fresh)
 		end
 	end
 	quests.refresh(M.data)
+	quests.ensure_daily(M.data)
 end
 
 -- Called every hub visit: rolls the daily block over at midnight.
@@ -337,7 +352,7 @@ end
 function M.chest_rush_cost(slot)
 	local rem = M.chest_remaining(slot)
 	if rem <= 0 then return 0 end
-	return math.max(1, math.min(60, math.ceil(rem / 180)))
+	return math.max(1, math.min(60, math.ceil(rem / 60)))
 end
 
 function M.start_chest(slot)
@@ -350,15 +365,29 @@ function M.start_chest(slot)
 	return true
 end
 
--- Rewarded ad: cut the remaining unlock time of a chest in half (min 30 min cut).
+-- Rewarded ad: cut the remaining unlock time of a chest in half.
 function M.speedup_chest(slot)
 	local ch = M.data.chests[slot]
 	if not (ch and ch.unlocking) then return false end
 	local rem = M.chest_remaining(slot)
-	local cut = math.max(math.floor(rem / 2), math.min(rem, 1800))
-	ch.end_time = ch.end_time - cut
+	if rem <= 0 then return false end
+	ch.end_time = ch.end_time - math.max(1, math.floor(rem / 2))
 	M.save()
 	return true
+end
+
+-- Victory reward: cut seconds off the chest that is currently unlocking.
+-- Returns { slot, rarity, cut, remaining } or nil when no chest is unlocking.
+function M.boost_active_chest(seconds)
+	local slot = M.any_chest_unlocking()
+	if not slot then return nil end
+	local ch = M.data.chests[slot]
+	local rem = M.chest_remaining(slot)
+	if rem <= 0 then return nil end
+	local cut = math.min(rem, math.max(1, seconds or config.CHEST_WIN_CUT))
+	ch.end_time = ch.end_time - cut
+	M.save()
+	return { slot = slot, rarity = ch.rarity, cut = cut, remaining = math.max(0, rem - cut) }
 end
 
 -- Roll chest contents and grant them. Returns { rarity, gold, drops = { {id, count, unlocked_now} } }.
@@ -539,6 +568,21 @@ function M.buy_deal(i)
 	return true
 end
 
+-- Free daily card deal (zero cost): the only reason the Shop tab shows a red dot.
+function M.free_deal_available()
+	local fd = M.data.daily and M.data.daily.free_deal
+	return fd ~= nil and not fd.claimed
+end
+
+function M.claim_free_deal()
+	local fd = M.data.daily and M.data.daily.free_deal
+	if not (fd and not fd.claimed) then return nil end
+	fd.claimed = true
+	add_cards(fd.id, fd.count)
+	M.save()
+	return fd
+end
+
 function M.ad_diamonds_left()
 	local used = M.data.daily and M.data.daily.ad_diamonds or 0
 	return math.max(0, config.AD_DIAMONDS_PER_DAY - used)
@@ -558,6 +602,7 @@ function M.apply_battle_result(opts)
 	local d = M.data
 	local won = opts.won
 	local is_pvp = opts.is_pvp
+	local is_survival = opts.is_survival == true
 	local base_gold = opts.gold or 40
 	local gold = won and base_gold or math.floor(base_gold * 0.25)
 	local streak_bonus = 0
@@ -577,7 +622,7 @@ function M.apply_battle_result(opts)
 		elseif won then
 			opts.chest = "wood"
 		end
-	elseif won then
+	elseif won and not is_survival then
 		d_pres = is_pvp and config.PVP_PRESTIGE_WIN or config.PRESTIGE_WIN
 		if is_pvp then
 			d.streak = math.min(config.STREAK_MAX, (d.streak or 0) + 1)
@@ -585,10 +630,11 @@ function M.apply_battle_result(opts)
 			streak_bonus = math.floor(base_gold * config.STREAK_GOLD_BONUS * (d.streak - 1) + 0.5)
 			gold = gold + streak_bonus
 		end
-	elseif not won then
+	elseif not won and not is_survival then
 		d_pres = -(is_pvp and config.PVP_PRESTIGE_LOSE or config.PRESTIGE_LOSE)
 		if is_pvp then d.streak = 0 end
 	end
+	if is_survival and opts.diamonds then d.diamonds = d.diamonds + opts.diamonds end
 	d.gold = d.gold + gold
 	local old_league = config.league_index(d.prestige)
 	d.prestige = math.max(0, (d.prestige or 0) + d_pres)
@@ -608,6 +654,8 @@ function M.apply_battle_result(opts)
 	end
 
 	local chest_slot, chest_rarity, bonus_cards, stars, new_stars, first_clear = nil, nil, nil, nil, 0, false
+	local chest_boost = nil
+	local unlocks = nil
 	if won then
 		d.stats.wins = (d.stats.wins or 0) + 1
 		quests.on_event(d, "wins", 1)
@@ -621,6 +669,13 @@ function M.apply_battle_result(opts)
 				d.max_stage_unlocked = math.min(campaign.COUNT, opts.stage_id + 1)
 				local st = campaign.get_stage(opts.stage_id)
 				if st.boss then d.diamonds = d.diamonds + 10 end
+				for _, id in ipairs(campaign.story_unlocks(opts.stage_id)) do
+					local newly = add_cards(id, 1)
+					if newly then
+						unlocks = unlocks or {}
+						unlocks[#unlocks + 1] = id
+					end
+				end
 			end
 			if not d.onboarding_done then
 				if opts.stage_id == 1 and first_clear then
@@ -640,8 +695,11 @@ function M.apply_battle_result(opts)
 				quests.on_event(d, "stars", new_stars)
 			end
 		end
-		chest_rarity = opts.chest or "wood"
-		chest_slot = M.add_chest(chest_rarity)
+		if not is_survival or opts.chest then
+			chest_rarity = opts.chest or "wood"
+			chest_slot = M.add_chest(chest_rarity)
+			chest_boost = M.boost_active_chest(config.CHEST_WIN_CUT)
+		end
 	end
 	M.save()
 	return {
@@ -655,12 +713,17 @@ function M.apply_battle_result(opts)
 		league_down = new_league < old_league,
 		chest_rarity = chest_rarity,
 		chest_slot = chest_slot,
+		chest_boost = chest_boost,
 		bonus_cards = bonus_cards,
+		unlocks = unlocks,
 		stars = stars,
 		new_stars = new_stars,
 		first_clear = first_clear,
+		speed_tip = (not d.onboarding_done) and opts.stage_id == 2 or false,
 		is_pvp = is_pvp,
 		is_trial = opts.is_trial,
+		is_survival = is_survival,
+		diamonds = opts.diamonds,
 		trial = trial_res,
 		stage_id = opts.stage_id,
 	}
@@ -687,16 +750,97 @@ function M.trial_boss()
 	return campaign.trial_boss(quests.today(), M.data.max_stage_unlocked or 1, M.player_power())
 end
 
+-- ---------------------------------------------------------------- survival gauntlet
+function M.survival_active()
+	local sv = M.data.survival
+	return sv ~= nil and sv.active == true
+end
+
+function M.survival_step()
+	local sv = M.data.survival
+	if not (sv and sv.active) then return 0 end
+	return math.max(1, sv.step or 1)
+end
+
+function M.survival_start()
+	local sv = M.data.survival
+	sv.active = true
+	sv.step = 1
+	sv.hp = M.hero_hp()
+	sv.relics = {}
+	M.save()
+end
+
+function M.survival_has_relic(id)
+	local sv = M.data.survival
+	return sv and sv.relics and sv.relics[id] == true or false
+end
+
+function M.survival_relic_ids()
+	local out = {}
+	for _, r in ipairs(config.RELICS) do
+		if M.survival_has_relic(r.id) then out[#out + 1] = r.id end
+	end
+	return out
+end
+
+function M.propose_relics(n)
+	local pool = {}
+	for _, r in ipairs(config.RELICS) do
+		if not M.survival_has_relic(r.id) then pool[#pool + 1] = r.id end
+	end
+	local rr = rng.new(quests.now() + (M.data.survival.step or 1) * 977 + (M.data.stats.chests or 0) * 13)
+	rr:shuffle(pool)
+	local out = {}
+	for i = 1, math.min(n or config.SURVIVAL.relic_choices, #pool) do out[#out + 1] = pool[i] end
+	return out
+end
+
+function M.add_survival_relic(id)
+	local sv = M.data.survival
+	sv.relics[id] = true
+	M.save()
+end
+
+-- After a won fight: carry the remaining HP (plus a small heal) into the next battle.
+function M.survival_step_done(hp)
+	local sv = M.data.survival
+	local mx = M.hero_hp()
+	sv.hp = math.min(mx, math.max(1, math.floor(hp or sv.hp or 1)) + math.floor(mx * config.SURVIVAL.heal_ratio))
+	sv.step = (sv.step or 1) + 1
+	M.save()
+end
+
+function M.survival_finish()
+	local sv = M.data.survival
+	sv.runs = (sv.runs or 0) + 1
+	sv.best = math.max(sv.best or 0, config.SURVIVAL.battles)
+	sv.active = false
+	sv.step = 0
+	sv.hp = 0
+	sv.relics = {}
+	M.save()
+end
+
+function M.survival_fail()
+	local sv = M.data.survival
+	sv.best = math.max(sv.best or 0, math.max(0, (sv.step or 1) - 1))
+	sv.active = false
+	sv.step = 0
+	sv.hp = 0
+	sv.relics = {}
+	M.save()
+end
+
 -- ---------------------------------------------------------------- badges (red dots)
 function M.badges()
 	local d = M.data
 	local b = { cards = 0, quests = 0, shop = 0, map = 0, home = 0 }
 	for _, s in ipairs(squads.LIST) do
-		local c = d.cards[s.id]
-		if c.new or M.can_upgrade_card(s.id) then b.cards = b.cards + 1 end
+		if M.can_upgrade_card(s.id) then b.cards = b.cards + 1 end
 	end
 	b.quests = quests.claimable_count(d) + (quests.login_pending(d) and 1 or 0)
-	if M.ad_diamonds_left() > 0 then b.shop = 1 end
+	if M.free_deal_available() then b.shop = 1 end
 	if M.star_chest_ready() then b.map = 1 end
 	for i = 1, config.MAX_CHEST_SLOTS do
 		local ch = d.chests[i]

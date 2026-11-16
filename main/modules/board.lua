@@ -22,6 +22,7 @@ local function clone_grid(g)
 				stone = cell.stone,
 				hp = cell.hp,
 				ice = cell.ice,
+				chains = cell.chains,
 				empowered = cell.empowered,
 				curse = cell.curse,
 			} or nil
@@ -35,7 +36,19 @@ local function is_gem(cell)
 end
 
 local function is_movable(cell)
-	return is_gem(cell) and not cell.ice
+	return is_gem(cell) and not cell.ice and not cell.chains
+end
+
+-- Chained crystals need two adjacent explosions (or one direct special hit) to break.
+local function break_chains(g, r, c, chains_hit, chains_broken)
+	if not (g and g.chains) then return end
+	g.chains = g.chains - 1
+	if g.chains > 0 then
+		chains_hit[#chains_hit + 1] = { r = r, c = c, hp = g.chains }
+	else
+		g.chains = nil
+		chains_broken[#chains_broken + 1] = { r = r, c = c }
+	end
 end
 
 local function random_color(r)
@@ -49,7 +62,7 @@ function M.find_matches(grid)
 		local c = 1
 		while c <= N do
 			local col = grid[r][c] and grid[r][c].color
-			if col and grid[r][c].special ~= "prism" then
+			if col and grid[r][c].special ~= "prism" and not grid[r][c].chains then
 				local c2 = c
 				while c2 + 1 <= N and grid[r][c2 + 1] and grid[r][c2 + 1].color == col and grid[r][c2 + 1].special ~= "prism" do
 					c2 = c2 + 1
@@ -69,7 +82,7 @@ function M.find_matches(grid)
 		local r = 1
 		while r <= N do
 			local col = grid[r][c] and grid[r][c].color
-			if col and grid[r][c].special ~= "prism" then
+			if col and grid[r][c].special ~= "prism" and not grid[r][c].chains then
 				local r2 = r
 				while r2 + 1 <= N and grid[r2 + 1][c] and grid[r2 + 1][c].color == col and grid[r2 + 1][c].special ~= "prism" do
 					r2 = r2 + 1
@@ -179,7 +192,7 @@ function M.valid_blast_moves(grid)
 	for r = 1, N do
 		for c = 1, N do
 			local cell = grid[r] and grid[r][c]
-			if is_gem(cell) and not cell.ice then
+			if is_gem(cell) and not cell.ice and not cell.chains then
 				if cell.special then
 					moves[#moves + 1] = {
 						r = r, c = c,
@@ -250,7 +263,7 @@ function M.freeze_random(b, rng_inst, count)
 			if is_gem(g) then
 				if g.ice then
 					existing = existing + 1
-				elseif not g.special and not g.curse then
+				elseif not g.special and not g.curse and not g.chains then
 					cands[#cands + 1] = { r = r, c = c }
 				end
 			end
@@ -282,7 +295,7 @@ function M.spawn_curse(b, rng_inst)
 			if is_gem(g) then
 				if g.curse then
 					existing = existing + 1
-				elseif not g.special and not g.ice and not g.empowered then
+				elseif not g.special and not g.ice and not g.chains and not g.empowered then
 					cands[#cands + 1] = { r = r, c = c }
 				end
 			end
@@ -363,6 +376,14 @@ local function generate_blast_board(b, rng_inst)
 	end
 end
 
+function M.place_special(b, r, c, kind)
+	local g = b.grid[r] and b.grid[r][c]
+	if not (g and is_gem(g) and not g.chains and not g.ice) then return false end
+	g.special = kind
+	g.curse = nil
+	return true
+end
+
 function M.new(rng_inst, cfg)
 	local b = { grid = {}, rng = rng_inst, cfg = cfg }
 	for r = 1, N do
@@ -413,6 +434,21 @@ function M.new(rng_inst, cfg)
 		end
 		if (cfg.ice or 0) > 0 then
 			M.freeze_random(b, rng_inst, cfg.ice)
+		end
+		if (cfg.chains or 0) > 0 then
+			local cands = {}
+			for r = 1, N do
+				for c = 1, N do
+					local g = b.grid[r][c]
+					if is_gem(g) and not g.special and not g.ice and not g.curse and not g.chains and not g.empowered then
+						cands[#cands + 1] = g
+					end
+				end
+			end
+			rng_inst:shuffle(cands)
+			for i = 1, math.min(cfg.chains, #cands) do
+				cands[i].chains = cfg.chain_hp or 2
+			end
 		end
 	end
 	return b
@@ -494,7 +530,8 @@ function M.shuffle(b)
 	return true
 end
 
-local function expand_specials(grid, initial_map)
+local function expand_specials(b, initial_map)
+	local grid = b.grid
 	local queue = {}
 	for k, v in pairs(initial_map) do queue[#queue + 1] = v end
 	local i = 1
@@ -512,12 +549,30 @@ local function expand_specials(grid, initial_map)
 						queue[#queue + 1] = initial_map[k]
 					end
 				end
+				if b.cross_rocket then
+					for rr = 1, N do
+						local k = key(rr, cell.c)
+						if not initial_map[k] and grid[rr][cell.c] and not grid[rr][cell.c].hole then
+							initial_map[k] = { r = rr, c = cell.c }
+							queue[#queue + 1] = initial_map[k]
+						end
+					end
+				end
 			elseif sp == "line_v" then
 				for rr = 1, N do
 					local k = key(rr, cell.c)
 					if not initial_map[k] and grid[rr][cell.c] and not grid[rr][cell.c].hole then
 						initial_map[k] = { r = rr, c = cell.c }
 						queue[#queue + 1] = initial_map[k]
+					end
+				end
+				if b.cross_rocket then
+					for cc = 1, N do
+						local k = key(cell.r, cc)
+						if not initial_map[k] and grid[cell.r][cc] and not grid[cell.r][cc].hole then
+							initial_map[k] = { r = cell.r, c = cc }
+							queue[#queue + 1] = initial_map[k]
+						end
 					end
 				end
 			elseif sp == "bomb" then
@@ -572,51 +627,65 @@ end
 local function apply_gravity_and_refill(b)
 	local falls = {}
 	local spawns = {}
-	for c = 1, N do
-		local read_r = 1
-		for write_r = 1, N do
-			local dst = b.grid[write_r][c]
-			if not dst then
-				if read_r <= write_r then read_r = write_r + 1 end
-				while read_r <= N and not is_gem(b.grid[read_r][c]) do
-					read_r = read_r + 1
-				end
-				if read_r <= N then
-					b.grid[write_r][c] = b.grid[read_r][c]
-					b.grid[read_r][c] = nil
-					falls[#falls + 1] = { from_r = read_r, to_r = write_r, c = c }
-				end
+	local function spawn_gem(r, c)
+		local gem_color
+		if config.is_blast_mode() then
+			local neighbor_colors = {}
+			if r > 1 and is_gem(b.grid[r - 1][c]) then
+				neighbor_colors[#neighbor_colors + 1] = b.grid[r - 1][c].color
 			end
+			if c > 1 and is_gem(b.grid[r][c - 1]) then
+				neighbor_colors[#neighbor_colors + 1] = b.grid[r][c - 1].color
+			end
+			if c < N and is_gem(b.grid[r][c + 1]) then
+				neighbor_colors[#neighbor_colors + 1] = b.grid[r][c + 1].color
+			end
+			if #neighbor_colors > 0 and b.rng:float() < 0.40 then
+				gem_color = b.rng:pick(neighbor_colors)
+			else
+				gem_color = random_color(b.rng)
+			end
+		else
+			gem_color = random_color(b.rng)
 		end
-		for r = 1, N do
-			if not b.grid[r][c] then
-				local gem_color
-				if config.is_blast_mode() then
-					local neighbor_colors = {}
-					if r > 1 and is_gem(b.grid[r - 1][c]) then
-						neighbor_colors[#neighbor_colors + 1] = b.grid[r - 1][c].color
-					end
-					if c > 1 and is_gem(b.grid[r][c - 1]) then
-						neighbor_colors[#neighbor_colors + 1] = b.grid[r][c - 1].color
-					end
-					if c < N and is_gem(b.grid[r][c + 1]) then
-						neighbor_colors[#neighbor_colors + 1] = b.grid[r][c + 1].color
-					end
-					if #neighbor_colors > 0 and b.rng:float() < 0.40 then
-						gem_color = b.rng:pick(neighbor_colors)
-					else
-						gem_color = random_color(b.rng)
-					end
-				else
-					gem_color = random_color(b.rng)
-				end
+		local gem = { color = gem_color }
+		if b.cfg and b.cfg.allow_empowered and b.rng:float() < 0.045 then
+			gem.empowered = true
+		end
+		b.grid[r][c] = gem
+		spawns[#spawns + 1] = { r = r, c = c, color = gem.color, empowered = gem.empowered }
+	end
 
-				local gem = { color = gem_color }
-				if b.cfg and b.cfg.allow_empowered and b.rng:float() < 0.045 then
-					gem.empowered = true
+	for c = 1, N do
+		-- Stones, holes and chained crystals are fixed barriers: gems compact and refill
+		-- inside each vertical segment, never passing through them.
+		local seg_start = 1
+		for r = 1, N + 1 do
+			local cell = r <= N and b.grid[r][c] or nil
+			local barrier = r > N or (cell and (cell.hole or cell.stone or cell.chains))
+			if barrier then
+				local seg_end = r - 1
+				local gems = {}
+				for rr = seg_start, seg_end do
+					local g = b.grid[rr][c]
+					if is_gem(g) then
+						gems[#gems + 1] = { gem = g, from = rr }
+						b.grid[rr][c] = nil
+					end
 				end
-				b.grid[r][c] = gem
-				spawns[#spawns + 1] = { r = r, c = c, color = gem.color, empowered = gem.empowered }
+				local bottom = seg_end
+				for i = #gems, 1, -1 do
+					local it = gems[i]
+					b.grid[bottom][c] = it.gem
+					if it.from ~= bottom then
+						falls[#falls + 1] = { from_r = it.from, to_r = bottom, c = c }
+					end
+					bottom = bottom - 1
+				end
+				for rr = seg_start, bottom do
+					spawn_gem(rr, c)
+				end
+				seg_start = r + 1
 			end
 		end
 	end
@@ -646,7 +715,7 @@ local function run_cascades(b, initial_clear_map, pivot1, pivot2)
 		local spawned_specs = {}
 
 		if pending_map then
-			clear_list = expand_specials(b.grid, pending_map)
+			clear_list = expand_specials(b, pending_map)
 			pending_map = nil
 		else
 			local groups = M.find_matches(b.grid)
@@ -676,7 +745,7 @@ local function run_cascades(b, initial_clear_map, pivot1, pivot2)
 					end
 				end
 			end
-			clear_list = expand_specials(b.grid, map)
+			clear_list = expand_specials(b, map)
 		end
 
 		if #clear_list == 0 and #spawned_specs == 0 then break end
@@ -685,6 +754,7 @@ local function run_cascades(b, initial_clear_map, pivot1, pivot2)
 		local counts = { red = 0, yellow = 0, purple = 0, green = 0, blue = 0 }
 		local direct_stone = {}
 		local stones_hit, stones_broken, melted, curse_cells, empowered_cells = {}, {}, {}, {}, {}
+		local chains_hit, chains_broken = {}, {}
 		local curses_cleared = 0
 		for _, p in ipairs(clear_list) do
 			local g = b.grid[p.r][p.c]
@@ -699,24 +769,27 @@ local function run_cascades(b, initial_clear_map, pivot1, pivot2)
 						stones_hit[#stones_hit + 1] = { r = p.r, c = p.c, hp = g.hp }
 					end
 				elseif is_gem(g) then
-					if counts[g.color] then
-						counts[g.color] = counts[g.color] + (g.empowered and 2 or 1)
+					break_chains(g, p.r, p.c, chains_hit, chains_broken)
+					if not g.chains then
+						if counts[g.color] then
+							counts[g.color] = counts[g.color] + (g.empowered and 2 or 1)
+						end
+						if g.empowered then
+							empowered_cells[#empowered_cells + 1] = { r = p.r, c = p.c, color = g.color }
+						end
+						if g.curse then
+							curses_cleared = curses_cleared + 1
+							curse_cells[#curse_cells + 1] = { r = p.r, c = p.c }
+						end
+						if g.ice then
+							melted[#melted + 1] = { r = p.r, c = p.c }
+						end
+						cleared_info[#cleared_info + 1] = {
+							r = p.r, c = p.c, color = g.color, special = g.special,
+							empowered = g.empowered, curse = g.curse, ice = g.ice,
+						}
+						b.grid[p.r][p.c] = nil
 					end
-					if g.empowered then
-						empowered_cells[#empowered_cells + 1] = { r = p.r, c = p.c, color = g.color }
-					end
-					if g.curse then
-						curses_cleared = curses_cleared + 1
-						curse_cells[#curse_cells + 1] = { r = p.r, c = p.c }
-					end
-					if g.ice then
-						melted[#melted + 1] = { r = p.r, c = p.c }
-					end
-					cleared_info[#cleared_info + 1] = {
-						r = p.r, c = p.c, color = g.color, special = g.special,
-						empowered = g.empowered, curse = g.curse, ice = g.ice,
-					}
-					b.grid[p.r][p.c] = nil
 				end
 			end
 		end
@@ -757,6 +830,8 @@ local function run_cascades(b, initial_clear_map, pivot1, pivot2)
 							else
 								stones_hit[#stones_hit + 1] = { r = nr, c = nc, hp = ng.hp }
 							end
+						elseif ng and ng.chains then
+							break_chains(ng, nr, nc, chains_hit, chains_broken)
 						elseif ng and ng.ice then
 							ng.ice = nil
 							melted[#melted + 1] = { r = nr, c = nc }
@@ -778,6 +853,8 @@ local function run_cascades(b, initial_clear_map, pivot1, pivot2)
 			spawns = spawns,
 			stones_hit = stones_hit,
 			stones_broken = stones_broken,
+			chains_hit = chains_hit,
+			chains_broken = chains_broken,
 			melted = melted,
 			curses_cleared = curses_cleared,
 			curse_cells = curse_cells,
@@ -830,10 +907,24 @@ function M.resolve_single_special(b, r, c, sp)
 				map[key(r, cc)] = { r = r, c = cc }
 			end
 		end
+		if b.cross_rocket then
+			for rr = 1, N do
+				if b.grid[rr][c] and not b.grid[rr][c].hole then
+					map[key(rr, c)] = { r = rr, c = c }
+				end
+			end
+		end
 	elseif sp == "line_v" then
 		for rr = 1, N do
 			if b.grid[rr][c] and not b.grid[rr][c].hole then
 				map[key(rr, c)] = { r = rr, c = c }
+			end
+		end
+		if b.cross_rocket then
+			for cc = 1, N do
+				if b.grid[r][cc] and not b.grid[r][cc].hole then
+					map[key(r, cc)] = { r = r, c = cc }
+				end
 			end
 		end
 	elseif sp == "bomb" then
@@ -965,13 +1056,14 @@ end
 
 local function run_blast(b, initial_clear_map, spawned_spec)
 	local steps = {}
-	local clear_list = expand_specials(b.grid, initial_clear_map)
+	local clear_list = expand_specials(b, initial_clear_map)
 	local spawned_specs = spawned_spec and { spawned_spec } or {}
 
 	local cleared_info = {}
 	local counts = { red = 0, yellow = 0, purple = 0, green = 0, blue = 0 }
 	local direct_stone = {}
 	local stones_hit, stones_broken, melted, curse_cells, empowered_cells = {}, {}, {}, {}, {}
+	local chains_hit, chains_broken = {}, {}
 	local curses_cleared = 0
 
 	for _, p in ipairs(clear_list) do
@@ -987,24 +1079,27 @@ local function run_blast(b, initial_clear_map, spawned_spec)
 					stones_hit[#stones_hit + 1] = { r = p.r, c = p.c, hp = g.hp }
 				end
 			elseif is_gem(g) then
-				if counts[g.color] then
-					counts[g.color] = counts[g.color] + (g.empowered and 2 or 1)
+				break_chains(g, p.r, p.c, chains_hit, chains_broken)
+				if not g.chains then
+					if counts[g.color] then
+						counts[g.color] = counts[g.color] + (g.empowered and 2 or 1)
+					end
+					if g.empowered then
+						empowered_cells[#empowered_cells + 1] = { r = p.r, c = p.c, color = g.color }
+					end
+					if g.curse then
+						curses_cleared = curses_cleared + 1
+						curse_cells[#curse_cells + 1] = { r = p.r, c = p.c }
+					end
+					if g.ice then
+						melted[#melted + 1] = { r = p.r, c = p.c }
+					end
+					cleared_info[#cleared_info + 1] = {
+						r = p.r, c = p.c, color = g.color, special = g.special,
+						empowered = g.empowered, curse = g.curse, ice = g.ice,
+					}
+					b.grid[p.r][p.c] = nil
 				end
-				if g.empowered then
-					empowered_cells[#empowered_cells + 1] = { r = p.r, c = p.c, color = g.color }
-				end
-				if g.curse then
-					curses_cleared = curses_cleared + 1
-					curse_cells[#curse_cells + 1] = { r = p.r, c = p.c }
-				end
-				if g.ice then
-					melted[#melted + 1] = { r = p.r, c = p.c }
-				end
-				cleared_info[#cleared_info + 1] = {
-					r = p.r, c = p.c, color = g.color, special = g.special,
-					empowered = g.empowered, curse = g.curse, ice = g.ice,
-				}
-				b.grid[p.r][p.c] = nil
 			end
 		end
 	end
@@ -1046,6 +1141,8 @@ local function run_blast(b, initial_clear_map, spawned_spec)
 						else
 							stones_hit[#stones_hit + 1] = { r = nr, c = nc, hp = ng.hp }
 						end
+					elseif ng and ng.chains then
+						break_chains(ng, nr, nc, chains_hit, chains_broken)
 					elseif ng and ng.ice then
 						ng.ice = nil
 						melted[#melted + 1] = { r = nr, c = nc }
@@ -1067,6 +1164,8 @@ local function run_blast(b, initial_clear_map, spawned_spec)
 		spawns = spawns,
 		stones_hit = stones_hit,
 		stones_broken = stones_broken,
+		chains_hit = chains_hit,
+		chains_broken = chains_broken,
 		melted = melted,
 		curses_cleared = curses_cleared,
 		curse_cells = curse_cells,
@@ -1150,6 +1249,7 @@ function M.use_hammer(b, r, c)
 	local g = b.grid[r] and b.grid[r][c]
 	if not g or g.hole then return nil end
 	if g.stone then g.hp = 1 end
+	if g.chains then g.chains = 1 end
 	local map = { [key(r, c)] = { r = r, c = c } }
 	if config.is_blast_mode() then
 		return run_blast(b, map, nil)

@@ -15,6 +15,7 @@ local function build_fighter_squads(slot_defs)
 		local lvl = def.level or def.lvl or 1
 		out[col] = {
 			id = def.id,
+			color = col,
 			level = lvl,
 			power = squads.power(def.id, lvl),
 			skill_power = squads.skill_power(def.id, lvl),
@@ -34,15 +35,31 @@ end
 function M.new(opts)
 	local r = rng.new(opts.seed or 42)
 	local b = board.new(r, opts.board_cfg)
+	local relics = opts.relics or {}
+	b.cross_rocket = relics.cross_rocket == true
+	if relics.start_bomb then
+		local placed = false
+		for _, p in ipairs({ { 4, 4 }, { 3, 4 }, { 4, 3 }, { 5, 4 }, { 4, 5 } }) do
+			if not placed and board.place_special(b, p[1], p[2], "bomb") then placed = true end
+		end
+	end
 	local p_hp = opts.player_hp or config.BASE_HP
-	local e_hp = opts.enemy_hp or 60
-	return {
+	local waves = opts.waves
+	local first = waves and waves[1] or nil
+	local e_hp = first and first.hp or opts.enemy_hp or 60
+	local e_moves = first and first.moves or opts.enemy_moves or 1
+	local e_squads = (first and first.squads) or opts.enemy_squads
+	local s = {
 		rng = r,
 		board = b,
 		board_cfg = opts.board_cfg,
 		arena = opts.arena or "arena_bg",
 		mode = opts.mode or "campaign",
 		stage_id = opts.stage_id or 1,
+		waves = waves,
+		wave_index = first and 1 or nil,
+		survival_step = opts.survival_step,
+		survival_total = opts.survival_total,
 		tutorial = opts.tutorial or false,
 		tutorial_step = opts.tutorial and 1 or 0,
 		turn = "player",
@@ -65,12 +82,17 @@ function M.new(opts)
 			hammer = opts.boosters and opts.boosters.hammer or 0,
 			extra_move = opts.boosters and opts.boosters.extra_move or 0,
 		},
+		ult = {
+			charge = math.max(0, math.min(config.ULT.max, (opts.ult_charge or 0) + (relics.fury_start and 50 or 0))),
+			max = config.ULT.max,
+		},
+		relics = relics,
 		player = {
 			face = "face_hero",
 			hp = p_hp,
 			max_hp = p_hp,
 			shield = 0,
-			max_shield = math.floor(p_hp * config.SHIELD_CAP_RATIO),
+			max_shield = math.floor(p_hp * config.SHIELD_CAP_RATIO * (relics.iron_skin and 1.25 or 1)),
 			moves_left = opts.player_moves or config.START_MOVES,
 			max_moves = opts.player_moves or config.START_MOVES,
 			heal_power = opts.heal_power or math.floor(p_hp * config.HEAL_RATIO + 0.5),
@@ -80,21 +102,26 @@ function M.new(opts)
 		},
 		enemy = {
 			name = opts.enemy_name or "",
-			name_key = opts.enemy_name_key,
-			face = opts.enemy_face or "face_goblin",
+			name_key = (first and first.name_key) or opts.enemy_name_key,
+			face = (first and first.face) or opts.enemy_face or "face_goblin",
 			hp = e_hp,
 			max_hp = e_hp,
 			shield = 0,
 			max_shield = math.floor(e_hp * config.SHIELD_CAP_RATIO),
-			moves_left = opts.enemy_moves or 1,
-			max_moves = opts.enemy_moves or 1,
+			moves_left = e_moves,
+			max_moves = e_moves,
 			difficulty = opts.enemy_diff or 1,
+			boss = opts.enemy_boss == true,
+			elite = opts.enemy_elite == true,
 			heal_power = math.max(6, math.floor(e_hp * config.HEAL_RATIO + 0.5)),
 			shield_power = math.max(6, math.floor(e_hp * config.SHIELD_RATIO + 0.5)),
-			squads = build_fighter_squads(opts.enemy_squads),
+			squads = build_fighter_squads(e_squads),
 			statuses = { burn = nil, poison = nil, freeze = 0 },
 		},
 	}
+	-- Boss/elite bombs hit much harder than regular curses.
+	s.curse_ratio = s.enemy.boss and 0.15 or (s.enemy.elite and 0.10 or 0.07)
+	return s
 end
 
 local function push(s, ev)
@@ -137,8 +164,32 @@ local function apply_damage(target, dmg, pierce_ratio)
 	return dealt, blocked
 end
 
+local function next_wave(s)
+	if not (s.waves and s.wave_index and s.wave_index < #s.waves) then return false end
+	s.wave_index = s.wave_index + 1
+	local w = s.waves[s.wave_index]
+	s.enemy.hp = w.hp
+	s.enemy.max_hp = w.hp
+	s.enemy.max_shield = math.floor(w.hp * config.SHIELD_CAP_RATIO)
+	s.enemy.shield = 0
+	s.enemy.moves_left = w.moves
+	s.enemy.max_moves = w.moves
+	if w.squads then s.enemy.squads = build_fighter_squads(w.squads) end
+	s.enemy.statuses = { burn = nil, poison = nil, freeze = 0 }
+	-- Reinforcements arrive; the board (and every prepared special) stays untouched.
+	local heal = math.min(s.player.max_hp - s.player.hp, math.floor(s.player.max_hp * 0.10))
+	s.player.hp = s.player.hp + heal
+	local sh = math.min(math.max(0, s.player.max_shield - s.player.shield), math.floor(s.player.max_shield * 0.25))
+	s.player.shield = s.player.shield + sh
+	s.player.moves_left = s.player.max_moves
+	s.turn = "player"
+	push(s, { kind = "wave", wave = s.wave_index, total = #s.waves, heal = heal, shield = sh })
+	return true
+end
+
 local function check_end(s)
 	if s.enemy.hp <= 0 then
+		if next_wave(s) then return true end
 		s.enemy.hp = 0
 		s.status = "win"
 		push(s, { kind = "win" })
@@ -176,11 +227,15 @@ local function trigger_skill(s, actor, target, who, col, sq)
 		target.shield = math.max(0, target.shield - broken)
 	end
 
+	if who == "player" and s.relics and s.relics.bloodlust then
+		dmg = math.max(1, math.floor(dmg * 1.12 + 0.5))
+	end
 	local dealt, blocked = apply_damage(target, dmg, pierce)
 	push(s, {
 		kind = "skill",
 		who = who,
 		color = col,
+		level = sq.level,
 		skill_id = sk.id,
 		style = sq.style,
 		fx = sk.fx or sq.fx,
@@ -324,11 +379,15 @@ local function apply_cascade_effects(s, actor, target, who, steps)
 				elseif sq.trait == "crush" and target.shield > 0 then
 					dmg = math.floor(dmg * 1.25 + 0.5)
 				end
+				if who == "player" and s.relics and s.relics.bloodlust then
+					dmg = math.max(1, math.floor(dmg * 1.12 + 0.5))
+				end
 				local dealt, blocked = apply_damage(target, dmg, pierce)
 				push(s, {
 					kind = "attack",
 					who = who,
 					color = col,
+					level = sq.level,
 					dmg = dmg,
 					dealt = dealt,
 					blocked = blocked,
@@ -362,6 +421,13 @@ local function apply_cascade_effects(s, actor, target, who, steps)
 			local gained = math.min(actor.max_hp - actor.hp, amt)
 			actor.hp = actor.hp + gained
 			push(s, { kind = "heal", who = who, amount = amt, gained = gained })
+			if who == "player" and s.relics and s.relics.green_shield then
+				local sg = math.min(actor.max_shield - actor.shield, math.floor(amt * 0.5 + 0.5))
+				if sg > 0 then
+					actor.shield = actor.shield + sg
+					push(s, { kind = "shield", who = who, amount = sg, gained = sg })
+				end
+			end
 		end
 
 		local b_cnt = step.counts.blue or 0
@@ -370,6 +436,20 @@ local function apply_cascade_effects(s, actor, target, who, steps)
 			local gained = math.min(actor.max_shield - actor.shield, amt)
 			actor.shield = actor.shield + gained
 			push(s, { kind = "shield", who = who, amount = amt, gained = gained })
+		end
+
+	-- Commander rage: large clusters and prisms charge the ultimate.
+		if who == "player" and s.ult then
+			local total = 0
+			for _, col in ipairs(config.COLORS) do total = total + (step.counts[col] or 0) end
+			if total >= 6 then
+				s.ult.charge = math.min(s.ult.max, s.ult.charge + config.ULT.cluster_charge + math.max(0, total - 6) * 2)
+			end
+			for _, sp in ipairs(step.specials or {}) do
+				if sp.special == "prism" then
+					s.ult.charge = math.min(s.ult.max, s.ult.charge + config.ULT.prism_charge)
+				end
+			end
 		end
 
 		-- Feed crystal runes across all 3 squads & trigger Special Skills when 2/2 ready
@@ -418,6 +498,10 @@ local function begin_turn(s, next_who)
 	st_map.freeze = 0
 	-- Freeze removes moves but always leaves at least one (no skipped turns).
 	actor.moves_left = math.max(1, actor.max_moves - freeze)
+	-- Relic: +1 move on every odd round.
+	if next_who == "player" and s.relics and s.relics.odd_move and s.turn_num % 2 == 1 then
+		actor.moves_left = math.min(config.MAX_MOVES, actor.moves_left + 1)
+	end
 	push(s, { kind = "turn", turn = next_who, turn_num = s.turn_num, freeze = freeze })
 	if freeze > 0 then
 		push(s, { kind = "frozen", who = next_who, lost = actor.max_moves - actor.moves_left })
@@ -445,7 +529,7 @@ function M.player_tap(s, r, c)
 		end
 		local ct = board.tick_curses(s.board)
 		if #ct.exploded > 0 then
-			local bdmg = math.max(5, math.floor(s.player.max_hp * 0.07 + 0.5)) * #ct.exploded
+			local bdmg = math.max(5, math.floor(s.player.max_hp * (s.curse_ratio or 0.07) + 0.5)) * #ct.exploded
 			local dealt, blocked = apply_damage(s.player, bdmg, 0)
 			push(s, { kind = "curse_blast", cells = ct.exploded, dmg = bdmg, dealt = dealt, blocked = blocked })
 			if check_end(s) then return true end
@@ -482,7 +566,7 @@ function M.player_swap(s, r1, c1, r2, c2)
 		end
 		local ct = board.tick_curses(s.board)
 		if #ct.exploded > 0 then
-			local bdmg = math.max(5, math.floor(s.player.max_hp * 0.07 + 0.5)) * #ct.exploded
+			local bdmg = math.max(5, math.floor(s.player.max_hp * (s.curse_ratio or 0.07) + 0.5)) * #ct.exploded
 			local dealt, blocked = apply_damage(s.player, bdmg, 0)
 			push(s, { kind = "curse_blast", cells = ct.exploded, dmg = bdmg, dealt = dealt, blocked = blocked })
 			if check_end(s) then return true end
@@ -497,6 +581,14 @@ end
 
 function M.step_enemy(s)
 	if s.status ~= "play" or s.turn ~= "enemy" then return false end
+	-- "Wrath of the Vanguard" stuns the enemy for a full turn.
+	if s.enemy.statuses.stun then
+		s.enemy.statuses.stun = nil
+		s.enemy.moves_left = 0
+		push(s, { kind = "stunned", who = "enemy" })
+		begin_turn(s, "player")
+		return true
+	end
 	local m = ai.pick_move(s.board, s.enemy, s.enemy.difficulty, s.rng)
 	if not m then
 		board.shuffle(s.board)
@@ -538,7 +630,34 @@ function M.step_enemy(s)
 				if cu then push(s, { kind = "board_curse", cells = { cu } }) end
 			end
 		end
+		-- Bosses and elites actively plant 1-2 three-move bombs on their turn.
+		if s.status == "play" and (s.enemy.boss or s.enemy.elite) then
+			local planted = {}
+			local n = s.enemy.boss and 2 or 1
+			for _ = 1, n do
+				local cu = board.spawn_curse(s.board, s.rng)
+				if cu then planted[#planted + 1] = cu end
+			end
+			if #planted > 0 then push(s, { kind = "board_curse", cells = planted, boss = true }) end
+		end
 	end
+	return true
+end
+
+function M.use_ult(s)
+	if s.status ~= "play" or s.turn ~= "player" then return false end
+	if not s.ult or s.ult.charge < s.ult.max then return false end
+	local total = 0
+	for _, col in ipairs(config.ATTACK_COLORS) do
+		local sq = s.player.squads[col]
+		if sq then total = total + sq.power end
+	end
+	local dmg = math.max(1, math.floor(total * config.ULT.damage_mult + 0.5))
+	local dealt, blocked = apply_damage(s.enemy, dmg, 0)
+	s.enemy.statuses.stun = true
+	s.ult.charge = 0
+	push(s, { kind = "ult", who = "player", dmg = dmg, dealt = dealt, blocked = blocked })
+	check_end(s)
 	return true
 end
 
@@ -634,6 +753,60 @@ function M.suggest_move(s)
 		best.match_cells = best_cells
 	end
 	return best
+end
+
+-- Estimated damage of tapping a cluster / special (no RNG: previews never touch the real board).
+function M.preview(s, r, c)
+	if not (s and s.board and s.status == "play" and s.turn == "player") then return nil end
+	if not config.is_blast_mode() then return nil end
+	local sim = board.clone_grid_only(s.board)
+	sim.rng = rng.new(24601)
+	local steps = board.resolve_tap(sim, r, c)
+	if not steps or #steps == 0 then return nil end
+
+	local fm = fury_mult(s)
+	local dmg, heal, shield, cleared = 0, 0, 0, 0
+	for _, step in ipairs(steps) do
+		local c_mult = (1 + 0.25 * (step.cascade - 1)) * fm
+		for _, col in ipairs(config.ATTACK_COLORS) do
+			local cnt = step.counts[col] or 0
+			if cnt > 0 then
+				local sq = s.player.squads[col]
+				local d = math.max(1, math.floor(sq.power * (cnt / 3) * c_mult + 0.5))
+				if s.player.statuses.weak and s.player.statuses.weak.turns > 0 then
+					d = math.max(1, math.floor(d * (s.player.statuses.weak.ratio or 0.75) + 0.5))
+				end
+				if sq.trait == "fury" and s.player.hp < s.player.max_hp * 0.5 then
+					d = math.floor(d * 1.35 + 0.5)
+				elseif sq.trait == "crush" and s.enemy.shield > 0 then
+					d = math.floor(d * 1.25 + 0.5)
+				end
+				dmg = dmg + d
+			end
+		end
+		local g = step.counts.green or 0
+		if g > 0 then
+			heal = heal + math.max(1, math.floor(s.player.heal_power * (g / 3) * (1 + 0.2 * (step.cascade - 1)) + 0.5))
+		end
+		local b = step.counts.blue or 0
+		if b > 0 then
+			shield = shield + math.max(1, math.floor(s.player.shield_power * (b / 3) * (1 + 0.2 * (step.cascade - 1)) + 0.5))
+		end
+		if (step.curses_cleared or 0) > 0 then
+			dmg = dmg + math.max(6, math.floor(s.enemy.max_hp * 0.06 + 0.5)) * step.curses_cleared
+		end
+		cleared = cleared + #(step.cleared or {})
+	end
+
+	local hp_dmg = math.max(0, math.min(s.enemy.hp, dmg - math.max(0, s.enemy.shield)))
+	return {
+		dmg = dmg,
+		hp_dmg = hp_dmg,
+		heal = heal,
+		shield = shield,
+		cleared = cleared,
+		lethal = dmg >= s.enemy.hp + math.max(0, s.enemy.shield),
+	}
 end
 
 -- Remaining-HP ratio of the player (stars / results).

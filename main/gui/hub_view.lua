@@ -5,6 +5,7 @@ local cards_view = require "main.gui.cards_view"
 local map_view = require "main.gui.map_view"
 local shop_view = require "main.gui.shop_view"
 local quests_view = require "main.gui.quests_view"
+local tower_view = require "main.gui.tower_view"
 local config = require "main.modules.config"
 local squads = require "main.modules.squads"
 local campaign = require "main.modules.campaign"
@@ -21,17 +22,19 @@ local TABS = {
 	{ id = "shop",   icon = "icon_shop",  key = "TAB_SHOP" },
 	{ id = "cards",  icon = "icon_cards", key = "TAB_CARDS" },
 	{ id = "home",   icon = "icon_pvp",   key = "TAB_HOME" },
+	{ id = "tower",  icon = "icon_fire",  key = "TAB_TOWER" },
 	{ id = "map",    icon = "icon_map",   key = "TAB_MAP" },
 	{ id = "quests", icon = "icon_quest", key = "TAB_QUESTS" },
 }
-local VIEWS = { cards = cards_view, map = map_view, shop = shop_view, quests = quests_view }
+local VIEWS = { cards = cards_view, map = map_view, shop = shop_view, quests = quests_view, tower = tower_view }
 
 local st = {}
 
 -- State signature: when it changes (a timer finished, etc.) the hub is rebuilt.
 local function signature()
 	local d = progress.data
-	local parts = { tostring(progress.free_chest_remaining() <= 0), tostring(quests.login_pending(d)), tostring(d.daily and d.daily.day) }
+	local parts = { tostring(progress.free_chest_remaining() <= 0), tostring(quests.login_pending(d)), tostring(d.daily and d.daily.day),
+		tostring(progress.survival_active()), tostring(progress.survival_step()), tostring(d.survival and d.survival.best) }
 	for i = 1, config.MAX_CHEST_SLOTS do
 		local ch = d.chests[i]
 		parts[#parts + 1] = ch and (ch.rarity .. tostring(ch.unlocking) .. tostring(progress.chest_remaining(i) <= 0)) or "-"
@@ -264,8 +267,16 @@ local function star_chest_bar(app, parent, cx, y, w, h)
 
 	local bar_w = w - 124
 	local bar_x = -w / 2 + 52 + bar_w / 2
-	local txt = ready and i18n.t("STAR_CHEST_READY") or (cur_have .. " / " .. cur_need)
-	ui.bar(box, bar_x, 0, bar_w, 28, math.min(1, cur_have / cur_need), ui.YELLOW, { text = txt, text_size = 15, text_color = ui.WHITE })
+	local bar_opts = { text_size = 15, text_color = ui.WHITE }
+	if not ready then bar_opts.text = cur_have .. " / " .. cur_need end
+	ui.bar(box, bar_x, 0, bar_w, 28, math.min(1, cur_have / cur_need), ui.YELLOW, bar_opts)
+	if ready then
+		-- Only the pulsing CTA on the full bar: the numeric progress would collide on narrow screens.
+		local gl = ui.glow(ui.box(box, "glow", bar_x, 0, math.min(bar_w * 0.8, 260), 42, V4(1, 0.85, 0.4, 0.35)))
+		ui.pulse(gl, 1.08, 0.5)
+		local rl = ui.label(box, i18n.t("STAR_CHEST_READY"), bar_x, 1, 18, ui.WHITE, bar_w - 12)
+		ui.pulse(rl, 1.06, 0.5)
+	end
 
 	local cic = ui.icon(box, config.CHESTS[rarity].sprite, w / 2 - 32, 0, 48)
 	if ready then ui.pulse(cic, 1.15, 0.38) end

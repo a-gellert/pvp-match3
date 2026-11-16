@@ -132,6 +132,7 @@ end
 -- ---------------------------------------------------------------- navigation
 function app.show_hub(tab)
 	app.paused_gameplay = nil
+	app.pending_win = nil
 	poki.gameplay_stop()
 	app.screen = "hub"
 	app.session = nil
@@ -157,7 +158,7 @@ end
 
 local function battle_opts(base)
 	local d = progress.data
-	base.player_hp = progress.hero_hp()
+	base.player_hp = base.player_hp or progress.hero_hp()
 	base.player_moves = d.max_moves
 	base.heal_power = progress.heal_power()
 	base.shield_power = progress.shield_power()
@@ -174,6 +175,7 @@ function app.start_campaign(stage_id, skip_break)
 		app.session = battle.new(battle_opts({
 			mode = "campaign",
 			stage_id = stg.id,
+			waves = stg.waves,
 			arena = campaign.biome(stg.id).arena,
 			board_cfg = stg.board_cfg,
 			tutorial = stg.tutorial and not d.onboarding_done,
@@ -183,6 +185,8 @@ function app.start_campaign(stage_id, skip_break)
 			enemy_hp = stg.hp,
 			enemy_moves = stg.moves,
 			enemy_diff = stg.diff,
+			enemy_boss = stg.boss,
+			enemy_elite = stg.diff >= 2,
 			enemy_squads = stg.squads,
 		}))
 		app.screen = "battle"
@@ -216,6 +220,7 @@ function app.launch_pvp(opp)
 			enemy_hp = opp.hp,
 			enemy_moves = opp.moves,
 			enemy_diff = opp.diff,
+			enemy_elite = opp.diff >= 2,
 			enemy_squads = opp.squads,
 			tint = config.LEAGUES[config.league_index(d.prestige)].color,
 		}))
@@ -246,6 +251,7 @@ function app.start_trial()
 			enemy_hp = boss.hp,
 			enemy_moves = boss.moves,
 			enemy_diff = boss.diff,
+			enemy_boss = true,
 			enemy_squads = boss.squads,
 			tint = campaign.BIOMES[boss.biome].tint,
 		}))
@@ -255,6 +261,45 @@ function app.start_trial()
 		app.paused_gameplay = nil
 		app.rebuild(true)
 		poki.measure("battle", "trial", "start")
+	end
+	if config.VIDEO_MODE then go() else poki.commercial_break((d.stats.battles or 0) + 1, go) end
+end
+
+-- Endless Gauntlet: 5 fights with carried HP and a relic choice after every win.
+function app.start_survival()
+	local d = progress.data
+	if not progress.survival_active() or progress.survival_step() <= 0 or (progress.data.survival.hp or 0) <= 0 then
+		progress.survival_start()
+	end
+	local step = progress.survival_step()
+	local opp = campaign.gauntlet_enemy(step, progress.player_power(), os.time() + step * 37)
+	local function go()
+		app.last_fight = { mode = "survival", opp = opp, step = step }
+		app.session = battle.new(battle_opts({
+			mode = "survival",
+			stage_id = 0,
+			arena = opp.arena,
+			board_cfg = opp.board_cfg,
+			seed = os.time() + step * 53,
+			enemy_name_key = opp.name_key,
+			enemy_face = opp.face,
+			enemy_hp = opp.hp,
+			enemy_moves = opp.moves,
+			enemy_diff = opp.diff,
+			enemy_boss = opp.boss,
+			enemy_elite = opp.diff >= 2,
+			enemy_squads = opp.squads,
+			player_hp = progress.data.survival.hp,
+			relics = progress.data.survival.relics,
+			survival_step = step,
+			survival_total = config.SURVIVAL.battles,
+		}))
+		app.screen = "battle"
+		app.popup = nil
+		app.queue = {}
+		app.paused_gameplay = nil
+		app.rebuild(true)
+		poki.measure("battle", "survival", "start")
 	end
 	if config.VIDEO_MODE then go() else poki.commercial_break((d.stats.battles or 0) + 1, go) end
 end
@@ -282,17 +327,66 @@ local function result_opts(won)
 	}
 end
 
+function app.finish_survival_win()
+	local s = app.session
+	local step = (app.last_fight and app.last_fight.step) or progress.survival_step()
+	local final = step >= config.SURVIVAL.battles
+	local opp = app.last_fight and app.last_fight.opp
+	local res = progress.apply_battle_result({
+		won = true,
+		is_survival = true,
+		gold = (opp and opp.gold or 80) + (final and config.SURVIVAL.gold or 0),
+		diamonds = final and config.SURVIVAL.diamonds or nil,
+		chest = final and config.SURVIVAL.chest or nil,
+		stats = s.stats,
+		hp_ratio = battle.hp_ratio(s),
+	})
+	res.stats = s.stats
+	res.is_survival = true
+	res.step = step
+	res.total = config.SURVIVAL.battles
+	poki.measure("battle", "survival", "win")
+	if final then
+		progress.survival_finish()
+		res.survival_complete = true
+		app.open_popup("win", res)
+	else
+		progress.survival_step_done(s.player.hp)
+		res.survival_hp = progress.data.survival.hp
+		res.survival_max = progress.hero_hp()
+		res.relic_choices = progress.propose_relics(config.SURVIVAL.relic_choices)
+		app.open_popup("relic", res)
+	end
+end
+
+function app.finish_survival_loss()
+	progress.survival_fail()
+	app.pending_loss = nil
+	poki.measure("battle", "survival", "lose")
+	app.open_popup("lose", { gold = 0, prestige_delta = 0, can_revive = false, survival = true })
+end
+
 function app.on_battle_end(won)
 	app.paused_gameplay = nil
 	poki.gameplay_stop()
 	local s = app.session
 	if not s then return end
 	persist_boosters(s)
+	if s.mode == "survival" then
+		if won then app.finish_survival_win() else app.finish_survival_loss() end
+		return
+	end
 	if won then
 		local res = progress.apply_battle_result(result_opts(true))
 		res.stats = s.stats
 		poki.measure("battle", s.mode, "win")
-		app.open_popup("win", res)
+		if res.unlocks and #res.unlocks > 0 then
+			-- Reveal the new story squad first, then the victory/reward panel.
+			app.pending_win = res
+			app.after_new_squad()
+		else
+			app.open_popup("win", res)
+		end
 	else
 		-- Loss is applied only when the player leaves (a revive keeps the fight going).
 		local opts = result_opts(false)
@@ -314,6 +408,19 @@ function app.apply_pending_loss()
 	end
 end
 
+-- Queue of story unlocks stored on the pending win result, one reveal popup each.
+function app.after_new_squad()
+	local res = app.pending_win
+	if not res then return end
+	if res.unlocks and #res.unlocks > 0 then
+		local id = table.remove(res.unlocks, 1)
+		app.open_popup("new_squad", { id = id })
+		return
+	end
+	app.pending_win = nil
+	app.open_popup("win", res)
+end
+
 function app.leave_battle(tab)
 	app.apply_pending_loss()
 	app.close_popup(true)
@@ -328,6 +435,8 @@ function app.retry_battle()
 		app.start_pvp_search()
 	elseif app.last_fight.mode == "trial" then
 		app.start_trial()
+	elseif app.last_fight.mode == "survival" then
+		app.start_survival()
 	else
 		app.start_campaign(app.last_fight.stage_id)
 	end
@@ -418,13 +527,36 @@ local function debug_setup(ds)
 	d.streak = 3
 	if ds ~= "daily" then d.login.last_day = quests.today() end
 	if ds == "home" or ds == "hub" then app.show_hub("home")
-	elseif ds == "cards" or ds == "map" or ds == "shop" or ds == "quests" then app.show_hub(ds)
+	elseif ds == "cards" or ds == "map" or ds == "shop" or ds == "quests" or ds == "tower" then app.show_hub(ds)
 	elseif ds == "battle" then app.start_campaign(7, true)
+	elseif ds == "wave" then app.start_campaign(6, true)
+	elseif ds == "survival" then progress.survival_start(); app.start_survival()
+	elseif ds == "relic" then
+		progress.survival_start()
+		app.show_hub("tower")
+		app.open_popup("relic", {
+			step = 2, total = 5,
+			survival_hp = progress.data.survival.hp, survival_max = progress.hero_hp(),
+			relic_choices = progress.propose_relics(3),
+		})
 	elseif ds == "pvp" then app.launch_pvp(campaign.pvp_opponent(d.prestige, 5, progress.player_power()))
 	elseif ds == "chest" then app.show_hub("home"); app.open_popup("chest", progress.roll_chest("royal", 77))
 	elseif ds == "win" then
 		app.start_campaign(7, true)
-		app.open_popup("win", { won = true, gold = 124, prestige_delta = 25, chest_rarity = "silver", chest_slot = 4, stars = 3, new_stars = 3, stage_id = 7, stats = app.session.stats })
+		app.open_popup("win", { won = true, gold = 124, prestige_delta = 25, chest_rarity = "silver", chest_slot = 4, stars = 3, new_stars = 3, stage_id = 7, stats = app.session.stats,
+			chest_boost = { rarity = "silver", cut = 45 }, speed_tip = true })
+	elseif ds == "win_survival" then
+		app.start_campaign(7, true)
+		app.open_popup("win", { won = true, gold = 500, is_survival = true, diamonds = 15, step = 5, total = 5,
+			survival_complete = true, chest_rarity = "royal", chest_slot = 4, stats = app.session.stats })
+	elseif ds == "new_squad" then
+		app.show_hub("home")
+		app.open_popup("new_squad", { id = "yellow_assassins" })
+	elseif ds == "story_win" then
+		progress.data.max_stage_unlocked = 2
+		app.start_campaign(2, true)
+		app.session.status = "win"
+		app.on_battle_end(true)
 	elseif ds == "pvp_win" then
 		app.launch_pvp(campaign.pvp_opponent(d.prestige, 5, progress.player_power()))
 		app.open_popup("win", { won = true, gold = 95, prestige_delta = 32, is_pvp = true, streak = 4, streak_bonus = 35, chest_rarity = "silver", chest_slot = 4, stats = app.session.stats })
@@ -453,6 +585,8 @@ local function debug_setup(ds)
 				local s = battle.new({
 					mode = "campaign", stage_id = n, seed = n * 1009 + s_i * 37,
 					board_cfg = stg.board_cfg,
+					waves = stg.waves,
+					enemy_boss = stg.boss,
 					player_hp = hp, player_moves = moves,
 					heal_power = math.floor(hp * config.HEAL_RATIO + 0.5),
 					shield_power = math.floor(hp * config.SHIELD_RATIO + 0.5),

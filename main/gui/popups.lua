@@ -70,6 +70,9 @@ B.win = function(app, root, data)
 	-- Fit the panel to its content: header + stars + rewards + optional rows + button block.
 	local need_h = 120 + 130 + 66 + 218
 		+ (((data.streak_bonus or 0) > 0 or data.trial) and 46 or 0)
+		+ (data.chest_boost and 46 or 0)
+		+ (data.speed_tip and 40 or 0)
+		+ (data.is_survival and 50 or 0)
 		+ (data.stars and 60 or 0)
 		+ (data.chest_rarity and 110 or 0)
 		+ (data.stats and 40 or 0)
@@ -108,6 +111,9 @@ B.win = function(app, root, data)
 	if data.is_trial then
 		ui.box(p, "icon_diamond", 80, y, 54, 54)
 		ui.text(p, "+" .. (data.trial and data.trial.diamonds or 0), 150, y, 34, ui.DIAMOND)
+	elseif data.is_survival then
+		ui.box(p, "icon_diamond", 80, y, 54, 54)
+		ui.text(p, "+" .. (data.diamonds or 0), 150, y, 34, ui.DIAMOND)
 	else
 		ui.box(p, "icon_prestige", 80, y, 54, 54)
 		local dp = data.prestige_delta or 0
@@ -124,6 +130,25 @@ B.win = function(app, root, data)
 		ui.pulse(fl, 1.15, 0.35)
 		ui.label(p, i18n.t("STREAK_BONUS", { n = data.streak, g = data.streak_bonus }), 20, y, 20, ui.GOLD, w - 200)
 		y = y - 46
+	end
+	if data.is_survival then
+		local fl = ui.box(p, "icon_fire", -150, y, 42, 42)
+		ui.pulse(fl, 1.15, 0.35)
+		ui.label(p, i18n.t("GAUNTLET_COMPLETE_FMT", { a = data.step or 0, b = data.total or 0 }), 20, y, 20, ui.GOLD, w - 200)
+		y = y - 46
+	end
+	if data.chest_boost then
+		local cb = ui.slice(p, "card_rare", 0, y - 22, w - 80, 54, ui.WHITE, 14)
+		local ci = ui.icon(cb, config.CHESTS[data.chest_boost.rarity].sprite, -(w - 80) / 2 + 32, 0, 40)
+		ui.pulse(ci, 1.12, 0.4)
+		local fade = ui.glow(ui.box(cb, "glow", 0, 0, (w - 80) * 0.7, 44, V4(1, 0.85, 0.4, 0.22)))
+		ui.pulse(fade, 1.04, 0.55)
+		ui.label(cb, i18n.t("CHEST_BOOST_FMT", { n = data.chest_boost.cut }), 24, 1, 20, ui.GOLD, w - 200)
+		y = y - 60
+	end
+	if data.speed_tip then
+		ui.label(p, i18n.t("SPEED_TIP"), 0, y - 2, 16, ui.DIM, w - 70)
+		y = y - 40
 	end
 	if data.stars then
 		local have, need = progress.star_chest_progress()
@@ -186,6 +211,11 @@ B.win = function(app, root, data)
 				app.close_popup(true)
 				app.start_pvp_search()
 			end, { icon = "icon_play", icon_size = 40, pulse = true })
+		elseif data.is_survival then
+			ui.btn(p, "btn_gold", 0, by, w - 120, 76, i18n.t("SURVIVAL_AGAIN"), 26, function()
+				app.close_popup(true)
+				app.start_survival()
+			end, { icon = "icon_fire", icon_size = 40, pulse = true })
 		elseif can_next then
 			ui.btn(p, "btn_gold", 0, by, w - 120, 76, i18n.t("NEXT_STAGE"), 28, function()
 				app.next_stage(data.stage_id)
@@ -221,7 +251,7 @@ B.win = function(app, root, data)
 end
 
 B.lose = function(app, root, data)
-	local need_h = data.can_revive and 680 or 600
+	local need_h = data.survival and 660 or (data.can_revive and 680 or 600)
 	local p, w, h = panel(root, app, 580, need_h, i18n.t("DEFEAT"))
 	audio.play("lose")
 	local face = ui.box(p, "face_hero", 0, h / 2 - 130, 110, 110, V4(0.7, 0.6, 0.65, 1))
@@ -231,6 +261,12 @@ B.lose = function(app, root, data)
 	ui.text(p, "+" .. (data.gold or 0), -85, y, 28, ui.GOLD)
 	ui.box(p, "icon_prestige", 70, y, 44, 44)
 	ui.text(p, tostring(data.prestige_delta or 0), 130, y, 28, ui.RED)
+	if data.survival then
+		local sb = ui.slice(p, "card_epic", 0, y - 34, w - 80, 58, ui.WHITE, 14)
+		ui.label(sb, i18n.t("SURVIVAL_OVER"), 0, 13, 20, ui.GOLD, w - 120)
+		ui.label(sb, i18n.t("SURVIVAL_REACHED_FMT", { n = (progress.data.survival and progress.data.survival.best) or 0 }), 0, -13, 15, ui.BONE, w - 120)
+		y = y - 70
+	end
 
 	local s = app.session
 	local is_ob = not progress.data.onboarding_done and progress.data.onboarding_step == 0
@@ -564,6 +600,105 @@ B.card = function(app, root, data)
 	end
 end
 
+-- ---------------------------------------------------------------- gauntlet relic choice
+B.relic = function(app, root, data)
+	local p, w, h = panel(root, app, 640, 760, i18n.t("RELIC_TITLE"))
+	ui.label(p, i18n.t("RELIC_SUB", { a = data.step or 1, b = data.total or config.SURVIVAL.battles }), 0, h / 2 - 84, 18, ui.DIM, w - 70, { lines = 2 })
+	local mx = data.survival_max or progress.hero_hp()
+	local hp = data.survival_hp or (progress.data.survival and progress.data.survival.hp) or mx
+	local bar = ui.bar(p, 0, h / 2 - 132, w - 110, 30, hp / math.max(1, mx), ui.GREEN, { text = hp .. " / " .. mx, text_size = 17 })
+	ui.box(bar.bg, "icon_heart", -(w - 110) / 2 - 6, 0, 36, 36)
+
+	local choices = data.relic_choices or {}
+	local top = h / 2 - 182
+	local ch = 138
+	local function take(id)
+		progress.add_survival_relic(id)
+		audio.play("star", 0.9, 1.1)
+		app.close_popup(true)
+		app.start_survival()
+	end
+	if #choices == 0 then
+		ui.label(p, i18n.t("RELIC_ALL"), 0, top - 80, 20, ui.GOLD, w - 80)
+	else
+		for i, id in ipairs(choices) do
+			local r = config.RELIC_BY_ID[id] or { id = id, sprite = "icon_star" }
+			local cy = top - (i - 0.5) * (ch + 14)
+			local card = ui.slice(p, "card_epic", 0, cy, w - 70, ch, ui.WHITE, 18)
+			local gl = ui.glow(ui.box(card, "glow", 0, 0, (w - 70) * 0.9, ch * 1.1, V4(1, 0.85, 0.4, 0.14)))
+			ui.pulse(gl, 1.03, 0.7)
+			ui.icon(card, r.sprite, -(w - 70) / 2 + 52, 0, 76)
+			ui.label(card, i18n.t(r.name_key), -w / 2 + 105, 22, 21, ui.GOLD, w - 200, { pivot = gui.PIVOT_W })
+			ui.label(card, i18n.t(r.desc_key), -w / 2 + 105, -18, 16, ui.BONE, w - 200, { pivot = gui.PIVOT_W, lines = 2 })
+			ui.button(card, function() take(id) end)
+		end
+	end
+	ui.btn(p, "btn_dark", 0, -h / 2 + 62, w - 140, 64, i18n.t("RELIC_SKIP"), 22, function()
+		app.close_popup(true)
+		app.start_survival()
+	end)
+end
+
+-- ---------------------------------------------------------------- new story squad
+B.new_squad = function(app, root, data)
+	local sq = squads.get(data.id)
+	if not sq then app.close_popup(true); app.after_new_squad(); return end
+	local p, w, h = panel(root, app, 600, 760, i18n.t("NEW_SQUAD_TITLE"))
+	local rar = ui.RARITY_COLOR[sq.rarity] or ui.BONE
+	ui.label(p, i18n.t("NEW_SQUAD_SUB"), 0, h / 2 - 82, 18, ui.DIM, w - 70, { lines = 2 })
+	local card_w, card_h = 220, 268
+	local cy = h / 2 - 100 - card_h / 2 - 34
+	local rays = ui.glow(ui.box(p, "rays", 0, cy, card_w * 2.1, card_w * 2.1, V4(rar.x, rar.y, rar.z, 0.28)))
+	ui.spin(rays, 9)
+	local card = ui.slice(p, ui.RARITY_FRAME[sq.rarity], 0, cy, card_w, card_h, ui.WHITE, 20)
+	local art = ui.icon(card, sq.sprite, 0, 10, card_w * 0.82)
+	ui.bob(art, 6, 0.9)
+	ui.box(card, ui.GEM_SPRITE[sq.color], -card_w / 2 + 24, card_h / 2 - 24, 34, 34)
+	local tag = ui.slice(card, "btn_crimson", card_w / 2 - 34, card_h / 2 - 20, 62, 26, ui.WHITE, 10)
+	ui.text(tag, i18n.t("NEW"), 0, 2, 15, ui.WHITE)
+	ui.pulse(tag, 1.12, 0.42)
+	ui.label(p, i18n.t("SQ_" .. sq.id), 0, cy - card_h / 2 - 28, 30, rar, w - 60)
+	ui.label(p, i18n.t("RARITY_" .. sq.rarity) .. "  |  " .. i18n.t("LVL_FMT", { n = 1 }), 0, cy - card_h / 2 - 62, 19, ui.BONE, w - 60)
+	local y = cy - card_h / 2 - 118
+	if sq.skill and sq.runes then
+		local sk = ui.slice(p, "panel_dark", 0, y, w - 70, 92, ui.WHITE, 16)
+		local rx = -w / 2 + 70
+		local rune_nodes = {}
+		for k = 1, 2 do
+			ui.box(sk, "rune_bg", rx + (k - 1) * 44, 0, 42, 42)
+			local gem = ui.box(sk, ui.GEM_SPRITE[sq.runes[k]], rx + (k - 1) * 44, 0, 30, 30)
+			gui.set_alpha(gem, 0.35)
+			rune_nodes[k] = gem
+		end
+		ui.label(sk, i18n.t("SK_" .. sq.skill.id), -w / 2 + 120, 15, 19, ui.DIAMOND, w - 220, { pivot = gui.PIVOT_W })
+		ui.label(sk, i18n.t("RUNE_HINT"), -w / 2 + 120, -17, 15, ui.DIM, w - 220, { pivot = gui.PIVOT_W })
+		-- Skill demo: light both runes, then flash the skill name.
+		for k = 1, 2 do
+			ui.after(0.45 + k * 0.28, function()
+				gui.set_alpha(rune_nodes[k], 1)
+				local gx = rx + (k - 1) * 44
+				ui.ring(sk, gx, 0, 90, ui.GEM_COLOR[sq.runes[k]] or ui.GOLD, 0.35)
+				ui.burst(sk, gx, 0, 7, ui.GEM_COLOR[sq.runes[k]] or ui.GOLD, 55, 18)
+				audio.play("star", 0.7, 1.0 + k * 0.1)
+			end)
+		end
+		ui.after(1.15, function()
+			ui.banner(p, i18n.t("SKILL_TAG"), 0, y + 84, 34, ui.GOLD, 0.6)
+			ui.ring(p, 0, y, 260, ui.GOLD, 0.45)
+			ui.flash(p, w, h, V4(1, 0.85, 0.4, 0.16), 0.3)
+			audio.play("combo", 0.8, 1.1)
+		end)
+		y = y - 102
+	end
+	if sq.trait and sq.trait ~= "none" then
+		ui.label(p, i18n.t("TRAIT_" .. sq.trait), 0, y, 18, ui.GREEN, w - 80)
+	end
+	ui.btn(p, "btn_gold", 0, -h / 2 + 66, w - 130, 82, i18n.t("CLAIM"), 28, function()
+		app.close_popup(true)
+		app.after_new_squad()
+	end, { icon = "icon_check", icon_size = 38, pulse = true })
+end
+
 -- ---------------------------------------------------------------- PvP search
 B.pvp_search = function(app, root, data)
 	local p, w, h = panel(root, app, 560, 520, i18n.t("PVP"))
@@ -630,6 +765,11 @@ B.stage = function(app, root, data)
 	ui.box(p, "icon_move_orb", 40, y, 30, 30)
 	ui.text(p, i18n.t("MOVES_FMT", { n = stg.moves }), 120, y, 22, ui.BONE)
 	y = y - 46
+	if stg.waves then
+		local wp = ui.slice(p, "card_epic", 0, y, 280, 34, ui.WHITE, 12)
+		ui.text(wp, i18n.t("WAVES_FMT", { n = #stg.waves }), 0, 2, 19, ui.WHITE)
+		y = y - 44
+	end
 	local lvl = campaign.expected_build(stg.id)
 	ui.label(p, i18n.t("RECOMMENDED", { n = lvl }), 0, y, 18, ui.DIM, w - 60)
 	y = y - 56
@@ -989,6 +1129,12 @@ function M.on_back(app)
 		if progress.data.onboarding_step == 0 then app.retry_battle() else app.leave_battle() end
 	elseif kind == "pause" then
 		app.resume_battle()
+	elseif kind == "new_squad" then
+		app.close_popup(true)
+		app.after_new_squad()
+	elseif kind == "relic" then
+		app.close_popup(true)
+		app.start_survival()
 	elseif kind == "language" then
 		app.open_popup(app.popup.data and app.popup.data.from or "settings")
 	elseif kind == "pvp_search" or kind == "chest" then

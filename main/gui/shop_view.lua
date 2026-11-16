@@ -81,7 +81,32 @@ function M.build(app, parent, R, hub_st)
 	local hdr = widgets.section(C, i18n.t("SHOP_DEALS"), 0, y, w, "icon_cards")
 	local tl = ui.text(hdr, i18n.fmt_time(quests.seconds_to_reset()), w / 2 - 90, 2, 18, ui.DIM)
 	hub_st.timers[#hub_st.timers + 1] = { node = tl, fn = function() return i18n.fmt_time(quests.seconds_to_reset()) end }
-	y = y - 36 - 140
+	y = y - 36
+	-- Free daily card gift (zero cost) - the Shop badge points here.
+	local fd = d.daily and d.daily.free_deal
+	if fd then
+		local sq = squads.get(fd.id)
+		local fh = 104
+		local fcy = y - fh / 2
+		local box = ui.slice(C, fd.claimed and "panel_dark" or "card_epic", 0, fcy, w - 8, fh,
+			fd.claimed and V4(0.6, 0.62, 0.7, 1) or ui.WHITE, 18)
+		ui.icon(box, sq.sprite, -w / 2 + 82, 0, 78, fd.claimed and V4(0.4, 0.4, 0.45, 1) or ui.WHITE)
+		ui.box(box, ui.GEM_SPRITE[sq.color], -w / 2 + 46, 34, 24, 24)
+		ui.label(box, i18n.t("FREE_DEAL"), -w / 2 + 130, 20, 15, ui.GOLD, w * 0.4, { pivot = gui.PIVOT_W })
+		ui.label(box, i18n.t("SQ_" .. sq.id) .. "  x" .. fd.count, -w / 2 + 130, -8, 20, ui.BONE, w * 0.45, { pivot = gui.PIVOT_W })
+		if fd.claimed then
+			ui.box(box, "icon_check", w / 2 - 90, 0, 44, 44)
+		else
+			ui.btn(box, "btn_gold", w / 2 - 90, 0, 150, 62, i18n.t("CLAIM"), 20, function()
+				if progress.claim_free_deal() then
+					audio.play("quest")
+					app.rebuild()
+				end
+			end, { pulse = true, icon = "icon_gift", icon_size = 30 })
+		end
+		y = y - fh - 16
+	end
+	y = y - 140
 	for i, deal in ipairs(d.daily and d.daily.deals or {}) do
 		local sq = squads.get(deal.id)
 		local x = col_x(((i - 1) % cols) + 1)
