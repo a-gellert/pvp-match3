@@ -531,6 +531,14 @@ local function debug_setup(ds)
 	elseif ds == "battle" then app.start_campaign(7, true)
 	elseif ds == "wave" then app.start_campaign(6, true)
 	elseif ds == "survival" then progress.survival_start(); app.start_survival()
+	elseif ds == "relics_ult" then
+		progress.survival_start()
+		progress.data.survival.relics = {
+			start_bomb = true, cross_rocket = true, green_shield = true, odd_move = true,
+			iron_skin = true, bloodlust = true, fury_start = true,
+		}
+		app.start_survival()
+		app.session.ult.charge = app.session.ult.max
 	elseif ds == "relic" then
 		progress.survival_start()
 		app.show_hub("tower")
