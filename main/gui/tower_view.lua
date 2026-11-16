@@ -32,7 +32,7 @@ function M.build(app, parent, R)
 	local total = config.SURVIVAL.battles
 
 	-- Hero banner: gauntlet identity + run progress
-	local hh = land and 224 or 286
+	local hh = land and 250 or 286
 	local card = ui.slice(parent, "panel_stone", cx, top - hh / 2, w, hh, ui.WHITE, 24)
 	local arena = ui.box(card, "arena_bg_void", 0, 18, w - 16, hh - 44, V4(0.72, 0.6, 1, 0.7))
 	gui.set_alpha(arena, 0.55)
@@ -51,7 +51,7 @@ function M.build(app, parent, R)
 	local best = i18n.t("SURVIVAL_BEST", { n = (d.survival and d.survival.best) or 0 })
 
 	-- Primary CTA
-	local btn_y = top - hh - 62
+	local btn_y = top - hh - (land and 56 or 62)
 	if active then
 		ui.label(parent, i18n.t("SURVIVAL_RUN_FMT", { a = step, b = total }), cx, btn_y + 58, 18, ui.DIM, w - 100)
 	end
@@ -60,19 +60,19 @@ function M.build(app, parent, R)
 	end, { icon = "icon_fire", icon_size = 46, pulse = true })
 
 	-- Rules + rewards
-	local ry = btn_y - 78
+	local ry = btn_y - (land and 60 or 78)
 	ui.label(parent, i18n.t("SURVIVAL_RULES"), cx, ry, 17, ui.DIM, w - 80, { lines = 2 })
-	local reward_y = ry - 62
+	local reward_y = ry - (land and 46 or 62)
 	widgets.section(parent, i18n.t("SURVIVAL_REWARD"), cx, reward_y, w, "chest_royal")
 	widgets.reward_row(parent, {
 		gold = config.SURVIVAL.gold,
 		diamonds = config.SURVIVAL.diamonds,
 		chest = config.SURVIVAL.chest,
 	}, cx, reward_y - 56, 38)
-	ui.label(parent, best, cx, reward_y - 104, 16, ui.PRESTIGE, w - 80)
+	ui.label(parent, best, cx, reward_y - (land and 96 or 104), 16, ui.PRESTIGE, w - 80)
 
 	-- Run relics: owned ones light up
-	local rel_y = reward_y - 148
+	local rel_y = reward_y - (land and 132 or 148)
 	widgets.section(parent, i18n.t("SURVIVAL_RELICS"), cx, rel_y, w, "icon_star")
 	local owned = progress.survival_relic_ids()
 	local n = #config.RELICS
@@ -89,7 +89,7 @@ function M.build(app, parent, R)
 			ui.box(box, "icon_lock", tw / 2 - 12, tw / 2 - 4, 20, 20)
 		end
 	end
-	ui.label(parent, i18n.t("SURVIVAL_RELIC_HINT", { n = #owned }), cx, rel_y - 112, 15, ui.DIM, w - 60)
+	ui.label(parent, i18n.t("SURVIVAL_RELIC_HINT", { n = #owned }), cx, rel_y - (land and 126 or 112), 15, ui.DIM, w - 60)
 end
 
 return M
