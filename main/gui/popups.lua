@@ -270,6 +270,7 @@ B.lose = function(app, root, data)
 
 	local s = app.session
 	local is_ob = not progress.data.onboarding_done and progress.data.onboarding_step == 0
+	local back_tab = data.survival and "tower" or "cards"
 	local half = (w - 140) / 2
 	local by = -h / 2 + 155
 
@@ -298,7 +299,7 @@ B.lose = function(app, root, data)
 		end, { icon = "icon_ad", icon_size = 34, pulse = true })
 
 		ui.btn(p, "btn_dark", 0, by - 80, w - 140, 58, i18n.t("TO_HUB"), 22, function()
-			app.leave_battle("cards")
+			app.leave_battle(back_tab)
 		end)
 	else
 		local tips = { "TIP_1", "TIP_2", "TIP_3", "TIP_4", "TIP_5" }
@@ -312,7 +313,7 @@ B.lose = function(app, root, data)
 				app.retry_battle()
 			end, { icon = "icon_play", icon_size = 36 })
 			ui.btn(p, "btn_dark", half / 2 + 10, by, half, 76, i18n.t("TO_HUB"), 24, function()
-				app.leave_battle("cards")
+				app.leave_battle(back_tab)
 			end)
 		end
 	end
