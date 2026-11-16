@@ -847,9 +847,8 @@ function M.badges()
 		local ch = d.chests[i]
 		if ch and ch.unlocking and M.chest_remaining(i) <= 0 then b.home = b.home + 1 end
 	end
-	if M.free_chest_remaining() <= 0 then b.home = b.home + 1 end
-	if M.road_claimable() then b.home = b.home + 1 end
-	if M.trial_available() then b.home = b.home + 1 end
+	-- Free gift / trial / road keep their own on-tile badges; the Battle tab only
+	-- reports ready chest slots to avoid a permanent red dot.
 	return b
 end
 
