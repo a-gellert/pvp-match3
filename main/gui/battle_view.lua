@@ -552,6 +552,13 @@ function M.refresh_hud()
 			if ic[2] then ui.text(st.hud, tostring(ic[2]), ix + 11, iy - 9, 13, ui.WHITE) end
 		end
 	end
+	-- Wave indicator under the enemy health bar (boss fights only)
+	if s.waves then
+		local eb = st.bars.enemy
+		local wp = ui.slice(st.hud, "panel_dark", eb.x - eb.w / 2 + 62, eb.y - 34, 112, 22, V4(1, 1, 1, 0.9), 8)
+		ui.text(wp, i18n.t("WAVE_FMT", { a = s.wave_index or 1, b = #s.waves }), 0, 1, 13, ui.GOLD)
+	end
+
 	-- Commander ultimate: a rage ring around the player's portrait (tap it when full).
 	if s.ult then
 		local ch = math.max(0, math.min(1, s.ult.charge / math.max(1, s.ult.max)))
