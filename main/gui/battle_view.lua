@@ -117,12 +117,21 @@ local function make_gem(r, c, gem, start_y)
 	}
 end
 
-local function kill_gem(g, delay)
+local function kill_gem(g, delay, quick)
 	if not g or not g.node then return end
 	g.dying = true
 	local n = g.node
-	local prep_dur = dur(0.08)
 	local pop_dur = dur(0.18)
+	-- safety: if the animation pool drops the fade tween, never leave the crystal behind
+	ui.expire(n, st.gem_layer, 1.5)
+	if quick then
+		gui.animate(n, "scale", V3(1.42, 1.42, 1), gui.EASING_OUTQUAD, pop_dur, delay or 0)
+		gui.animate(n, "color.w", 0, gui.EASING_INQUAD, pop_dur, delay or 0, function()
+			pcall(gui.delete_node, n)
+		end)
+		return
+	end
+	local prep_dur = dur(0.08)
 	local rot = (math.random() > 0.5 and 1 or -1) * math.random(12, 24)
 
 	-- Phase 1: Anticipation crunch (pull in slightly, building tension)
@@ -267,9 +276,7 @@ local function show_hint()
 				st.hint_nodes[#st.hint_nodes + 1] = gem
 				local gx, gy = cell_pos(mc.r, mc.c)
 				local gc = ui.GEM_COLOR[gem.color] or ui.GOLD
-				local gl = ui.glow(ui.box(st.fx_layer, "glow", gx, gy, st.cell * 1.35, st.cell * 1.35, tint(gc, 0.55)))
-				gui.animate(gl, "scale", V3(1.18, 1.18, 1), gui.EASING_INOUTSINE, 0.42, 0, nil, gui.PLAYBACK_LOOP_PINGPONG)
-				gui.animate(gl, "color.w", 0.25, gui.EASING_INOUTSINE, 0.42, 0, nil, gui.PLAYBACK_LOOP_PINGPONG)
+				local gl = ui.glow(ui.box(st.fx_layer, "glow", gx, gy, st.cell * 1.35, st.cell * 1.35, tint(gc, 0.5)))
 				local rg = ui.glow(ui.box(st.fx_layer, "ring", gx, gy, st.cell * 1.0, st.cell * 1.0, ui.GOLD))
 				gui.animate(rg, "scale", V3(1.15, 1.15, 1), gui.EASING_INOUTSINE, 0.42, 0, nil, gui.PLAYBACK_LOOP_PINGPONG)
 				st.hint_fx[#st.hint_fx + 1] = gl
@@ -1561,7 +1568,7 @@ local function anim_step(ev, step)
 
 	for _, cl in ipairs(step.cleared) do
 		local g = st.gems[cl.r][cl.c]
-		if g then kill_gem(g); st.gems[cl.r][cl.c] = nil end
+		if g then kill_gem(g, nil, many); st.gems[cl.r][cl.c] = nil end
 		local cx, cy = cell_pos(cl.r, cl.c)
 		local col = ui.GEM_COLOR[cl.color] or ui.WHITE
 		local lst = cells_by_col[cl.color]
@@ -1581,13 +1588,15 @@ local function anim_step(ev, step)
 				gui.set_euler(core, V3(0, 0, math.random(0, 90)))
 				gui.animate(core, "scale", V3(1.35, 1.35, 1), gui.EASING_OUTQUAD, dur(0.18))
 				gui.animate(core, "color.w", 0, gui.EASING_INQUAD, dur(0.18), 0, function() gui.delete_node(core) end)
+
+				-- Dynamic shockwave ring
+				ui.ring(st.fx_layer, cx, cy, st.cell * 1.35, col, dur(0.28))
 			end
 
-			-- Dynamic shockwave ring
-			ui.ring(st.fx_layer, cx, cy, st.cell * 1.35, col, dur(0.28))
-
-			-- Crystal shards/sparks
-			ui.burst(st.fx_layer, cx, cy, sparks, col, st.cell * 0.65, 24)
+			-- Crystal shards/sparks (one cell in two on board-wide blasts)
+			if not huge or (cl.r + cl.c) % 2 == 0 then
+				ui.burst(st.fx_layer, cx, cy, sparks, col, st.cell * 0.65, 24)
+			end
 			if not many then
 				ui.burst(st.fx_layer, cx, cy, 2, ui.WHITE, st.cell * 0.45, 18)
 			end
@@ -1602,6 +1611,7 @@ local function anim_step(ev, step)
 			end
 		end)
 	end
+	if huge then ui.ring(st.fx_layer, st.board_cx, st.board_cy, st.board_size * 0.95, ui.GOLD, dur(0.42)) end
 	for _, p in ipairs(step.stones_hit or {}) do
 		local cx, cy = cell_pos(p.r, p.c)
 		local g = st.gems[p.r][p.c]
@@ -1610,7 +1620,7 @@ local function anim_step(ev, step)
 	end
 	for _, p in ipairs(step.stones_broken or {}) do
 		local g = st.gems[p.r][p.c]
-		if g then kill_gem(g); st.gems[p.r][p.c] = nil end
+		if g then kill_gem(g, nil, many); st.gems[p.r][p.c] = nil end
 		local cx, cy = cell_pos(p.r, p.c)
 		ui.after(dur(0.07), function()
 			ui.ring(st.fx_layer, cx, cy, st.cell * 1.5, ui.GOLD, dur(0.30))
@@ -1705,7 +1715,7 @@ local function anim_step(ev, step)
 				local x, y = cell_pos(f.to_r, f.c)
 				gui.cancel_animations(g.node, "position")
 				gui.animate(g.node, "position", V3(x, y, 0), gui.EASING_INQUAD, dur(0.17))
-				if not g.stone then land_squash(g, dur(0.17)) end
+				if not g.stone and not huge then land_squash(g, dur(0.17)) end
 			end
 			st.gems[f.to_r][f.c] = g
 		end
@@ -1717,7 +1727,7 @@ local function anim_step(ev, step)
 			local x, y = cell_pos(sp.r, sp.c)
 			local delay = (sp.r - 1) * dur(0.012)
 			gui.animate(g.node, "position", V3(x, y, 0), gui.EASING_INQUAD, dur(0.19), delay)
-			if g and g.color then land_squash(g, delay + dur(0.19)) end
+			if g and g.color and not huge then land_squash(g, delay + dur(0.19)) end
 			st.gems[sp.r][sp.c] = g
 		end
 	end)
