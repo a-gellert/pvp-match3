@@ -119,8 +119,8 @@ function M.new(opts)
 			statuses = { burn = nil, poison = nil, freeze = 0 },
 		},
 	}
-	-- Boss/elite bombs hit much harder than regular curses.
-	s.curse_ratio = s.enemy.boss and 0.15 or (s.enemy.elite and 0.10 or 0.07)
+	-- Boss/elite bombs hit hard (25% / 15% of the commander's max HP); regular curses 7%.
+	s.curse_ratio = s.enemy.boss and 0.25 or (s.enemy.elite and 0.15 or 0.07)
 	return s
 end
 
