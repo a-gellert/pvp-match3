@@ -52,6 +52,6 @@ dependencies#1 = https://github.com/Insality/defold-event/archive/refs/tags/21.z
 dependencies#2 = https://github.com/Insality/druid/archive/refs/tags/1.3.0.zip
 
 [gui]
-max_animation_count = 2048
+max_animation_count = 4096
 max_particle_count = 2048
 

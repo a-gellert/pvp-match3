@@ -25,7 +25,7 @@ local SIDES = { "player", "enemy" }
 local SPEC_SPRITE = { line_h = "spec_line_h", line_v = "spec_line_v", bomb = "spec_bomb" }
 local STEP_DUR = 0.40
 local AI_DELAY = 0.09
-local ANIM_FAST = 1.25 -- global web polish: cascades and projectiles run 25% faster
+local ANIM_FAST = 0.625 -- battle pace: 50% slower than the previous 1.25x web polish
 local HINT_DELAY = 2.5
 local DMG_COLOR = V4(1, 0.93, 0.86, 1)
 local DEAD_COLOR = V4(0.36, 0.38, 0.46, 0.6)
@@ -54,6 +54,13 @@ local function screen_to_cell(x, y)
 	local c = math.floor((x - st.board_x0) / st.cell) + 1
 	local r = math.floor((y - st.board_y0) / st.cell) + 1
 	if r >= 1 and r <= N and c >= 1 and c <= N then return r, c end
+end
+
+-- GUI animations come from a fixed-size pool ([gui] max_animation_count in game.project).
+-- Board-wide specials can exhaust it; a dropped fade tween never runs its delete callback,
+-- so the effect would stay on screen forever. Timed expiry is the safety net.
+local function fx_ttl(n, seconds)
+	return ui.expire(n, st.fx_layer, seconds or 2.5)
 end
 
 local function at(t, fn)
@@ -141,7 +148,7 @@ local function rebuild_gems(pop)
 		st.gems[r] = {}
 		for c = 1, N do
 			st.gems[r][c] = make_gem(r, c, g[r][c])
-			if pop and st.gems[r][c] then ui.pop(st.gems[r][c].node, 0.1, 1, 0.3, (r + c) * 0.018) end
+			if pop and st.gems[r][c] then ui.pop(st.gems[r][c].node, 0.1, 1, 0.22, (r + c) * 0.012) end
 		end
 	end
 end
@@ -892,6 +899,7 @@ local function turn_banner(is_p, sub)
 	local s = st.session
 	local bw = math.min(st.app.vw, st.board_size + 220)
 	local root = ui.pane(st.fx_layer, st.board_cx, st.board_cy)
+	fx_ttl(root, (is_p and dur(0.38) or dur(0.20)) + 2.2)
 	local col = is_p and V4(0.93, 0.68, 0.18, 0.95) or V4(0.72, 0.1, 0.18, 0.95)
 	local band = ui.box(root, "band", 0, 0, bw, 150, col)
 	gui.set_scale(band, V3(1, 0.05, 1))
@@ -936,7 +944,7 @@ function M.intro()
 		audio.play("hit", 0.8, 0.7)
 		ui.shake_xy(st.shake, 8)
 		ui.banner(st.fx_layer, i18n.t("FIGHT"), st.arena_cx, st.arena_cy + 18, 64, ui.GOLD, 0.55)
-		local goal = ui.text(st.fx_layer, i18n.t("GOAL_HP"), st.arena_cx, st.arena_cy - 36, 22, ui.BONE)
+		local goal = fx_ttl(ui.text(st.fx_layer, i18n.t("GOAL_HP"), st.arena_cx, st.arena_cy - 36, 22, ui.BONE), 3)
 		ui.fit(goal, st.arena_w - 40, 22)
 		ui.fade_in(goal, 0.2)
 		gui.animate(goal, "color.w", 0, gui.EASING_INQUAD, 0.3, 1.2, function() gui.delete_node(goal) end)
@@ -1004,7 +1012,7 @@ local function strike_melee(ev, A, T, foe, big, col)
 		audio.play("slash", 0.95, ev.crit and 1.15 or 1.0)
 		local sp = ev.fx or "fx_slash"
 		local sz = st.us * 1.3 * (1 + math.min(0.28, 0.07 * ((ev.level or 1) - 1)))
-		local sl = ui.glow(ui.box(st.fx_layer, sp, T.home.x - dir * 8, T.home.y, sz, sz, sp == "fx_slash" and col or ui.WHITE))
+		local sl = fx_ttl(ui.glow(ui.box(st.fx_layer, sp, T.home.x - dir * 8, T.home.y, sz, sz, sp == "fx_slash" and col or ui.WHITE)), 2)
 		gui.set_scale(sl, V3(dir * 0.65, 0.65, 1))
 		gui.set_euler(sl, V3(0, 0, dir * -22))
 		gui.animate(sl, "scale", V3(dir * 1.4, 1.4, 1), gui.EASING_OUTQUAD, dur(0.16))
@@ -1052,12 +1060,12 @@ local function strike_missile(ev, A, T, foe, big, col, magic)
 			local ang = math.deg(math.atan2(ey - sy, tx - sx))
 			local pk = 1 + math.min(0.3, 0.07 * ((ev.level or 1) - 1))
 			local w, h = (magic and 68 or 64) * pk, (magic and 50 or 32) * pk
-			local proj = ui.glow(ui.box(st.fx_layer, ev.fx or (magic and "proj_spell" or "proj_arrow"), sx, sy, w, h, ui.WHITE))
+			local proj = fx_ttl(ui.glow(ui.box(st.fx_layer, ev.fx or (magic and "proj_spell" or "proj_arrow"), sx, sy, w, h, ui.WHITE)), 2)
 			gui.set_euler(proj, V3(0, 0, ang))
 			gui.animate(proj, "position", V3(tx, ey, 0), magic and gui.EASING_INOUTSINE or gui.EASING_LINEAR, fly)
 			ui.after(fly * 0.45, function() ui.spark_dot(st.fx_layer, sx + (tx - sx) * 0.45, sy + (ey - sy) * 0.45, col, magic and 24 or 16, dur(0.2)) end)
 			ui.after(fly, function()
-				gui.delete_node(proj)
+				pcall(gui.delete_node, proj)
 				if k == 1 then
 					hit_squad(foe, ev.color, ev, big, col)
 					ui.shake_xy(st.shake, big and 11 or 5)
@@ -1100,7 +1108,7 @@ local function support_fx(ev, color, sprite, field)
 		if U and not U.dead then
 			ui.ring(st.fx_layer, U.home.x, U.home.y, st.us * 1.35, color, dur(0.36))
 			if sprite then
-				local ic = ui.box(st.fx_layer, sprite, U.home.x, U.home.y + 4, st.us * 0.5, st.us * 0.5, color)
+				local ic = fx_ttl(ui.box(st.fx_layer, sprite, U.home.x, U.home.y + 4, st.us * 0.5, st.us * 0.5, color), 2)
 				ui.pop(ic, 0.5, 1.2, dur(0.22))
 				gui.animate(ic, "color.w", 0, gui.EASING_INQUAD, dur(0.25), dur(0.16), function() gui.delete_node(ic) end)
 			else
@@ -1172,7 +1180,7 @@ local function schedule_effect(ev, t)
 			local key = KEYS[ev.stype] or "FREEZE_TAG"
 			local col = COLS[ev.stype] or ui.DIAMOND
 			local fx = st.faces[side].x
-			local ic = ui.box(st.fx_layer, ICONS[ev.stype] or "icon_star", fx, st.strip_y, 70, 70)
+			local ic = fx_ttl(ui.box(st.fx_layer, ICONS[ev.stype] or "icon_star", fx, st.strip_y, 70, 70), 2)
 			ui.pop(ic, 0.3, 1.2, dur(0.22))
 			gui.animate(ic, "color.w", 0, gui.EASING_INQUAD, dur(0.25), dur(0.32), function() gui.delete_node(ic) end)
 			ui.float_text(st.fx_layer, i18n.t(key), st.bars[side].x, st.strip_y + 40, 22, col, 40)
@@ -1292,8 +1300,8 @@ local function schedule_effect(ev, t)
 					ui.after((i - 1) * dur(0.05), function()
 						ui.ring(st.fx_layer, U.home.x, U.home.y, st.us * 2.0, ui.GOLD, dur(0.4))
 						ui.burst(st.fx_layer, U.home.x, U.home.y, 12, ui.GOLD, st.us * 0.9, 24)
-						local bolt = ui.glow(ui.box(st.fx_layer, "proj_lightning", U.home.x, U.home.y + st.us * 0.35,
-							st.us * 0.8, st.us * 1.35, ui.GOLD))
+						local bolt = fx_ttl(ui.glow(ui.box(st.fx_layer, "proj_lightning", U.home.x, U.home.y + st.us * 0.35,
+							st.us * 0.8, st.us * 1.35, ui.GOLD)), 2)
 						gui.set_euler(bolt, V3(0, 0, 90))
 						gui.animate(bolt, "color.w", 0, gui.EASING_INQUAD, dur(0.30), dur(0.16), function() gui.delete_node(bolt) end)
 						if U.vis then ui.flash_hit(U.vis, ui.GOLD) end
@@ -1451,15 +1459,15 @@ local function line_beam(cx, cy, col, vertical)
 	local thick = st.cell * 0.95
 	local bx, by = vertical and cx or st.board_cx, vertical and st.board_cy or cy
 	local w, h = vertical and thick or len, vertical and len or thick
-	local band = ui.glow(ui.box(st.fx_layer, "glow", bx, by, w, h, tint(col, 0.95)))
-	local core = ui.glow(ui.box(st.fx_layer, "square", bx, by, vertical and thick * 0.2 or len, vertical and len or thick * 0.2, V4(1, 1, 1, 0.95)))
+	local band = fx_ttl(ui.glow(ui.box(st.fx_layer, "glow", bx, by, w, h, tint(col, 0.95))), 1.5)
+	local core = fx_ttl(ui.glow(ui.box(st.fx_layer, "square", bx, by, vertical and thick * 0.2 or len, vertical and len or thick * 0.2, V4(1, 1, 1, 0.95))), 1.5)
 	for _, n in ipairs({ band, core }) do
 		gui.set_scale(n, vertical and V3(0.2, 1, 1) or V3(1, 0.2, 1))
 		gui.animate(n, "scale", V3(1, 1, 1), gui.EASING_OUTBACK, dur(0.1))
 		gui.animate(n, "color.w", 0, gui.EASING_INQUAD, dur(0.3), dur(0.1), function() gui.delete_node(n) end)
 	end
 	for _, d in ipairs({ -1, 1 }) do
-		local runner = ui.glow(ui.box(st.fx_layer, "spark", cx, cy, st.cell * 0.9, st.cell * 0.9, ui.WHITE))
+		local runner = fx_ttl(ui.glow(ui.box(st.fx_layer, "spark", cx, cy, st.cell * 0.9, st.cell * 0.9, ui.WHITE)), 1.5)
 		local ex = vertical and cx or (st.board_cx + d * len / 2)
 		local ey = vertical and (st.board_cy + d * len / 2) or cy
 		gui.animate(runner, "position", V3(ex, ey, 0), gui.EASING_OUTQUAD, dur(0.22))
@@ -1472,7 +1480,7 @@ end
 
 -- Bomb: hot core flash, double shockwave, debris and a heavy board jolt.
 local function bomb_blast(cx, cy, col)
-	local flash = ui.glow(ui.box(st.fx_layer, "glow", cx, cy, st.cell * 1.2, st.cell * 1.2, V4(1, 0.95, 0.8, 1)))
+	local flash = fx_ttl(ui.glow(ui.box(st.fx_layer, "glow", cx, cy, st.cell * 1.2, st.cell * 1.2, V4(1, 0.95, 0.8, 1))), 1.5)
 	gui.animate(flash, "size", V3(st.cell * 4.2, st.cell * 4.2, 0), gui.EASING_OUTQUAD, dur(0.22))
 	gui.animate(flash, "color.w", 0, gui.EASING_INQUAD, dur(0.3), 0, function() gui.delete_node(flash) end)
 	ui.ring(st.fx_layer, cx, cy, st.cell * 4.4, col, dur(0.34))
@@ -1541,9 +1549,15 @@ local function anim_step(ev, step)
 	end
 	-- Clear
 	local cells_by_col = {}
-	local many = #step.cleared > 14
-	local shake_amp = math.min(6, 2 + math.floor(#step.cleared / 3))
+	local n_cleared = #step.cleared
+	local many = n_cleared > 14
+	local huge = n_cleared > 24
+	local shake_amp = math.min(6, 2 + math.floor(n_cleared / 3))
 	ui.shake_xy(st.shake, shake_amp)
+	-- Big board-wide blasts are the ones that exhaust the GUI animation pool, so the
+	-- per-cell sparkle is rationed; the crystal itself always pops.
+	local sparks = huge and 1 or (many and 3 or 5)
+	local special_left = 3
 
 	for _, cl in ipairs(step.cleared) do
 		local g = st.gems[cl.r][cl.c]
@@ -1556,28 +1570,36 @@ local function anim_step(ev, step)
 
 		-- Juicy match FX timed to the pop phase (crunch -> explosion)
 		ui.after(dur(0.07), function()
-			-- Glowing additive core flash
-			local flash = ui.glow(ui.box(st.fx_layer, "glow", cx, cy, st.cell * 0.75, st.cell * 0.75, col))
-			gui.animate(flash, "scale", V3(1.85, 1.85, 1), gui.EASING_OUTQUAD, dur(0.24))
-			gui.animate(flash, "color.w", 0, gui.EASING_INQUAD, dur(0.24), 0, function() gui.delete_node(flash) end)
+			if not huge then
+				-- Glowing additive core flash
+				local flash = fx_ttl(ui.glow(ui.box(st.fx_layer, "glow", cx, cy, st.cell * 0.75, st.cell * 0.75, col)))
+				gui.animate(flash, "scale", V3(1.85, 1.85, 1), gui.EASING_OUTQUAD, dur(0.24))
+				gui.animate(flash, "color.w", 0, gui.EASING_INQUAD, dur(0.24), 0, function() gui.delete_node(flash) end)
 
-			-- Crisp white spark core
-			local core = ui.glow(ui.box(st.fx_layer, "spark", cx, cy, st.cell * 0.5, st.cell * 0.5, ui.WHITE))
-			gui.set_euler(core, V3(0, 0, math.random(0, 90)))
-			gui.animate(core, "scale", V3(1.35, 1.35, 1), gui.EASING_OUTQUAD, dur(0.18))
-			gui.animate(core, "color.w", 0, gui.EASING_INQUAD, dur(0.18), 0, function() gui.delete_node(core) end)
+				-- Crisp white spark core
+				local core = fx_ttl(ui.glow(ui.box(st.fx_layer, "spark", cx, cy, st.cell * 0.5, st.cell * 0.5, ui.WHITE)))
+				gui.set_euler(core, V3(0, 0, math.random(0, 90)))
+				gui.animate(core, "scale", V3(1.35, 1.35, 1), gui.EASING_OUTQUAD, dur(0.18))
+				gui.animate(core, "color.w", 0, gui.EASING_INQUAD, dur(0.18), 0, function() gui.delete_node(core) end)
+			end
 
 			-- Dynamic shockwave ring
 			ui.ring(st.fx_layer, cx, cy, st.cell * 1.35, col, dur(0.28))
 
-			-- Rich burst of crystal shards/sparks
-			local count = many and 4 or 7
-			ui.burst(st.fx_layer, cx, cy, count, col, st.cell * 0.65, 24)
+			-- Crystal shards/sparks
+			ui.burst(st.fx_layer, cx, cy, sparks, col, st.cell * 0.65, 24)
 			if not many then
 				ui.burst(st.fx_layer, cx, cy, 2, ui.WHITE, st.cell * 0.45, 18)
 			end
 
-			if cl.special then special_fx(cl, cx, cy, col) end
+			if cl.special then
+				if special_left > 0 then
+					special_left = special_left - 1
+					special_fx(cl, cx, cy, col)
+				else
+					ui.ring(st.fx_layer, cx, cy, st.cell * 2.4, col, dur(0.30))
+				end
+			end
 		end)
 	end
 	for _, p in ipairs(step.stones_hit or {}) do
@@ -1642,18 +1664,18 @@ local function anim_step(ev, step)
 			tx, ty = st.bars[side].x, st.bars[side].y
 		end
 		local gc = ui.GEM_COLOR[col] or ui.WHITE
-		local count = math.min(#pts, 6)
+		local count = math.min(#pts, huge and 2 or (many and 3 or 5))
 		for k = 1, count do
 			local p = pts[k]
 			local delay = dur(0.07) + (k - 1) * dur(0.015)
 			local orb_dur = dur(0.18) + math.min(2, k - 1) * dur(0.012)
 			ui.after(delay, function()
-				local orb = ui.glow(ui.box(st.fx_layer, "glow", p.x, p.y, 44, 44, gc))
+				local orb = fx_ttl(ui.glow(ui.box(st.fx_layer, "glow", p.x, p.y, 44, 44, gc)), 2.0)
 				ui.glow(ui.box(orb, "glow", 0, 0, 20, 20, ui.WHITE))
 				ui.pop(orb, 0.3, 1, dur(0.08))
 				ui.spark_dot(st.fx_layer, (p.x + tx) * 0.5, (p.y + ty) * 0.5, gc, 22, dur(0.15))
 				ui.fly(orb, tx, ty, orb_dur, 0, function()
-					gui.delete_node(orb)
+					pcall(gui.delete_node, orb)
 					if k == 1 then
 						ui.ring(st.fx_layer, tx, ty, st.us * 1.15, gc, dur(0.18))
 						ui.burst(st.fx_layer, tx, ty, 4, gc, st.us * 0.45, 18)
@@ -1796,13 +1818,14 @@ function M.process()
 			end
 			if ev.shuffled then
 				at(t0, anim_shuffle)
-				t0 = t0 + dur(0.4)
+				-- keep the action locked while the rebuilt gems pop in (raw pop times)
+				t0 = t0 + dur(0.25) + 0.45
 			end
 			t = math.max(t0, fx_end)
 			i = j
 		elseif ev.kind == "shuffle" then
 			at(t, anim_shuffle)
-			t = t + dur(0.4)
+			t = t + dur(0.25) + 0.45
 			i = i + 1
 		else
 			t = math.max(t, schedule_effect(ev, t))
@@ -1811,7 +1834,7 @@ function M.process()
 	end
 
 	st.busy = true
-	at(t + dur(0.04), function()
+	at(t + dur(0.16), function()
 		st.busy = false
 		sync_board()
 		sync_disp()
@@ -1970,7 +1993,7 @@ local function click_sparks(x, y, color)
 		local a = math.random() * math.pi * 2
 		local d = 16 + math.random() * 26
 		local dur_s = dur(0.18 + math.random() * 0.1)
-		local n = ui.glow(ui.box(st.fx_layer, "spark", x, y, 14, 14, color))
+		local n = fx_ttl(ui.glow(ui.box(st.fx_layer, "spark", x, y, 14, 14, color)), 2)
 		gui.animate(n, "position", V3(x + math.cos(a) * d, y + math.sin(a) * d, 0), gui.EASING_OUTCUBIC, dur_s)
 		gui.animate(n, "color.w", 0, gui.EASING_INQUAD, dur_s, 0, function() gui.delete_node(n) end)
 	end
@@ -2327,6 +2350,20 @@ end
 function M.update(dt)
 	local s = st.session
 	if not (s and st.gems) then return end
+
+	-- Failsafe: a dropped process timer must never leave the board locked forever.
+	if st.busy then
+		st.busy_t = (st.busy_t or 0) + dt
+		if st.busy_t > 12 then
+			st.busy_t = 0
+			st.busy = false
+			sync_board()
+			sync_disp()
+			M.refresh_hud()
+		end
+	else
+		st.busy_t = 0
+	end
 
 	-- Confusion timer decay
 	if st.confusion_count and st.confusion_count > 0 then

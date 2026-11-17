@@ -424,6 +424,19 @@ function M.after(delay, fn)
 	end)
 end
 
+-- GUI animations share a capped pool ([gui] max_animation_count in game.project). A huge
+-- cascade can exhaust it: the dropped fade tween never runs its delete callback and the
+-- effect stays on screen forever ("frozen flicker"). Every transient FX node also gets a
+-- timer-based expiry, which does not depend on the animation pool, as a safety net.
+function M.expire(n, parent, seconds)
+	if not n then return n end
+	timer.delay(seconds or 3, false, function()
+		local ok, p = pcall(gui.get_parent, n)
+		if ok and p == parent then pcall(gui.delete_node, n) end
+	end)
+	return n
+end
+
 function M.pop(n, from, to, dur, delay)
 	gui.set_scale(n, V3(from, from, 1))
 	gui.animate(n, "scale", V3(to, to, 1), gui.EASING_OUTBACK, dur or 0.28, delay or 0)
@@ -488,12 +501,12 @@ function M.burst(parent, x, y, count, color, spread, size)
 	for _ = 1, (count or 6) do
 		local s = (size or 26) * (0.7 + math.random() * 0.6)
 		local n = M.glow(M.box(parent, "spark", x, y, s, s, color or M.GOLD))
+		M.expire(n, parent, 2.5)
 		local a = math.random() * math.pi * 2
 		local d = (spread or 65) * (0.4 + math.random() * 0.6)
 		local dur = 0.28 + math.random() * 0.22
 		gui.set_euler(n, V3(0, 0, math.random(0, 90)))
 		gui.animate(n, "position", V3(x + math.cos(a) * d, y + math.sin(a) * d, 0), gui.EASING_OUTCUBIC, dur)
-		gui.animate(n, "euler.z", math.random(-120, 120), gui.EASING_OUTQUAD, dur)
 		gui.animate(n, "color.w", 0, gui.EASING_INQUAD, dur, 0, function() gui.delete_node(n) end)
 	end
 end
@@ -505,6 +518,7 @@ function M.confetti(parent, cx, top, width, count)
 		local x = cx + (math.random() - 0.5) * width
 		local n = M.box(parent, "square", x, top + math.random(0, 120), math.random(8, 16), math.random(12, 22), cols[(i % #cols) + 1])
 		local dur = 1.4 + math.random() * 1.2
+		M.expire(n, parent, dur + 1.5)
 		gui.set_euler(n, V3(0, 0, math.random(0, 360)))
 		gui.animate(n, "position.y", top - 700 - math.random(0, 400), gui.EASING_INQUAD, dur, math.random() * 0.4)
 		gui.animate(n, "position.x", x + (math.random() - 0.5) * 220, gui.EASING_INOUTSINE, dur, 0)
@@ -515,12 +529,14 @@ end
 
 function M.ring(parent, x, y, size, color, dur)
 	local n = M.glow(M.box(parent, "ring", x, y, size * 0.3, size * 0.3, color or M.WHITE))
+	M.expire(n, parent, 2.5)
 	gui.animate(n, "size", V3(size, size, 0), gui.EASING_OUTCUBIC, dur or 0.35)
 	gui.animate(n, "color.w", 0, gui.EASING_INQUAD, dur or 0.35, 0, function() gui.delete_node(n) end)
 end
 
 function M.float_text(parent, str, x, y, size, color, rise)
 	local n = M.text(parent, str, x, y, size or 28, color or M.WHITE)
+	M.expire(n, parent, 3)
 	M.pop(n, 0.4, 1, 0.22)
 	gui.animate(n, "position.y", y + (rise or 64), gui.EASING_OUTQUAD, 0.75, 0.12)
 	gui.animate(n, "color.w", 0, gui.EASING_INQUAD, 0.3, 0.55, function() gui.delete_node(n) end)
@@ -530,6 +546,7 @@ end
 -- Big centered banner text that punches in and fades (combos, turn changes).
 function M.banner(parent, str, x, y, size, color, hold)
 	local n = M.text(parent, str, x, y, size or 48, color or M.GOLD)
+	M.expire(n, parent, (hold or 0.7) + 1.6)
 	gui.set_scale(n, V3(0.1, 0.1, 1))
 	local s = (size or 48) / M.FONT_SIZE
 	gui.animate(n, "scale", V3(s * 1.15, s * 1.15, 1), gui.EASING_OUTBACK, 0.22, 0, function()
@@ -549,6 +566,7 @@ end
 function M.collect(parent, sprite, x1, y1, x2, y2, count, size)
 	for i = 1, (count or 6) do
 		local n = M.icon(parent, sprite, x1 + math.random(-30, 30), y1 + math.random(-30, 30), size or 40)
+		M.expire(n, parent, 3)
 		M.pop(n, 0.2, 1, 0.18, (i - 1) * 0.04)
 		M.fly(n, x2, y2, 0.45 + math.random() * 0.15, 0.2 + (i - 1) * 0.05, function()
 			gui.delete_node(n)
@@ -567,6 +585,7 @@ end
 function M.puff(parent, x, y, color, size)
 	local s = size or 28
 	local n = M.box(parent, "puff", x, y, s, s, color or V4(0.85, 0.85, 0.92, 0.55))
+	M.expire(n, parent, 2)
 	gui.animate(n, "size", V3(s * 1.9, s * 1.9, 0), gui.EASING_OUTQUAD, 0.26)
 	gui.animate(n, "color.w", 0, gui.EASING_INQUAD, 0.26, 0, function() gui.delete_node(n) end)
 end
@@ -574,6 +593,7 @@ end
 function M.spark_dot(parent, x, y, color, size, dur)
 	local s = size or 16
 	local n = M.glow(M.box(parent, "glow", x, y, s, s, color or M.GOLD))
+	M.expire(n, parent, 2)
 	gui.animate(n, "size", V3(4, 4, 0), gui.EASING_INQUAD, dur or 0.22)
 	gui.animate(n, "color.w", 0, gui.EASING_INQUAD, dur or 0.22, 0, function() gui.delete_node(n) end)
 end
@@ -593,6 +613,7 @@ end
 -- Full-screen flash (skills, big hits)
 function M.flash(parent, vw, vh, color, dur)
 	local n = M.glow(M.box(parent, "square", vw / 2, vh / 2, vw, vh, color or V4(1, 1, 1, 0.35)))
+	M.expire(n, parent, 2)
 	gui.animate(n, "color.w", 0, gui.EASING_OUTQUAD, dur or 0.25, 0, function() gui.delete_node(n) end)
 end
 
