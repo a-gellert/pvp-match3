@@ -280,6 +280,7 @@ function M.btn(parent, sprite, x, y, w, h, label, tsize, fn, opts)
 		parent, x, y = holder, 0, 0
 	end
 	local node = M.slice(parent, sprite, x, y, w, h, opts.color or M.WHITE, br)
+	if opts.pulse or opts.shine then M.shine(node, w, h) end
 	local has_label = label and label ~= ""
 	local icon_w = 0
 	if opts.icon then
@@ -463,6 +464,24 @@ end
 function M.glow(n)
 	gui.set_blend_mode(n, gui.BLEND_ADD)
 	return n
+end
+
+-- Glossy light streak sweeping across a button every few seconds (clipped to the button body).
+function M.shine(parent, w, h, period)
+	local clip = gui.new_box_node(V3(0, 0, 0), V3(w - 10, h - 10, 0))
+	gui.set_parent(clip, parent)
+	gui.set_clipping_mode(clip, gui.CLIPPING_MODE_STENCIL)
+	gui.set_clipping_visible(clip, false)
+	local sw = math.max(28, h * 0.45)
+	local streak = M.glow(M.box(clip, "square", -w, 0, sw, h * 2.2, V4(1, 1, 1, 0.3)))
+	gui.set_euler(streak, V3(0, 0, -24))
+	-- The tween callback restarts the sweep after a pause; it stops by itself when the node is deleted
+	local function sweep(delay)
+		gui.set_position(streak, V3(-w, 0, 0))
+		gui.animate(streak, "position.x", w, gui.EASING_INOUTSINE, 0.6, delay, function() sweep(period or 2.6) end)
+	end
+	sweep(0.4 + math.random() * 0.8)
+	return clip
 end
 
 function M.burst(parent, x, y, count, color, spread, size)

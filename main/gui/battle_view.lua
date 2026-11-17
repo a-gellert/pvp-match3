@@ -112,6 +112,7 @@ end
 
 local function kill_gem(g, delay)
 	if not g or not g.node then return end
+	g.dying = true
 	local n = g.node
 	local prep_dur = dur(0.08)
 	local pop_dur = dur(0.18)
@@ -981,6 +982,7 @@ local function hit_squad(side, col, ev, big, color)
 	end
 	if ev.crit then
 		audio.play("crit")
+		ui.flash(st.fx_layer, st.app.vw, st.app.vh, V4(1, 0.95, 0.8, 0.14), 0.16)
 		ui.float_text(st.fx_layer, i18n.t("CRIT_TAG"), x - away * st.us * 0.3, y + st.us * 0.9, 24, ui.GOLD, 40)
 	end
 	audio.play("hit", 0.9, big and 1.15 or 1.0)
@@ -1419,6 +1421,91 @@ local function telegraph_blast(ev)
 	gui.animate(hand, "color.w", 0, gui.EASING_INQUAD, dur(0.08), dur(0.20), function() gui.delete_node(hand) end)
 end
 
+-- Jolt the gem layer (the board itself) around its rest position; the arena has its own shake.
+local function board_jolt(amp)
+	local n = st.gem_layer
+	if not n then return end
+	local bx, by = -st.board_cx, -st.board_cy
+	gui.cancel_animations(n, "position")
+	gui.set_position(n, V3(bx + math.random(-amp, amp), by + math.random(-amp, amp), 0))
+	gui.animate(n, "position", V3(bx, by, 0), gui.EASING_OUTELASTIC, 0.32)
+end
+
+-- Gem lands after a fall: squash wide, then spring back (cheap "weight" for every cascade).
+local function land_squash(g, delay)
+	local node = g.node
+	ui.after(delay, function()
+		-- a gem already popping must keep its kill tween (it deletes the node)
+		if g.dying then return end
+		pcall(function()
+			gui.cancel_animations(node, "scale")
+			gui.set_scale(node, V3(1.14, 0.84, 1))
+			gui.animate(node, "scale", V3(1, 1, 1), gui.EASING_OUTBACK, dur(0.16))
+		end)
+	end)
+end
+
+-- Beam along a row or column (line gems): additive colour band + white core + two runners.
+local function line_beam(cx, cy, col, vertical)
+	local len = st.board_size * 1.08
+	local thick = st.cell * 0.95
+	local bx, by = vertical and cx or st.board_cx, vertical and st.board_cy or cy
+	local w, h = vertical and thick or len, vertical and len or thick
+	local band = ui.glow(ui.box(st.fx_layer, "glow", bx, by, w, h, tint(col, 0.95)))
+	local core = ui.glow(ui.box(st.fx_layer, "square", bx, by, vertical and thick * 0.2 or len, vertical and len or thick * 0.2, V4(1, 1, 1, 0.95)))
+	for _, n in ipairs({ band, core }) do
+		gui.set_scale(n, vertical and V3(0.2, 1, 1) or V3(1, 0.2, 1))
+		gui.animate(n, "scale", V3(1, 1, 1), gui.EASING_OUTBACK, dur(0.1))
+		gui.animate(n, "color.w", 0, gui.EASING_INQUAD, dur(0.3), dur(0.1), function() gui.delete_node(n) end)
+	end
+	for _, d in ipairs({ -1, 1 }) do
+		local runner = ui.glow(ui.box(st.fx_layer, "spark", cx, cy, st.cell * 0.9, st.cell * 0.9, ui.WHITE))
+		local ex = vertical and cx or (st.board_cx + d * len / 2)
+		local ey = vertical and (st.board_cy + d * len / 2) or cy
+		gui.animate(runner, "position", V3(ex, ey, 0), gui.EASING_OUTQUAD, dur(0.22))
+		gui.animate(runner, "euler.z", 360, gui.EASING_LINEAR, dur(0.22))
+		gui.animate(runner, "color.w", 0, gui.EASING_INQUAD, dur(0.22), 0, function() gui.delete_node(runner) end)
+	end
+	audio.play("spell", 0.8, 1.25)
+	board_jolt(5)
+end
+
+-- Bomb: hot core flash, double shockwave, debris and a heavy board jolt.
+local function bomb_blast(cx, cy, col)
+	local flash = ui.glow(ui.box(st.fx_layer, "glow", cx, cy, st.cell * 1.2, st.cell * 1.2, V4(1, 0.95, 0.8, 1)))
+	gui.animate(flash, "size", V3(st.cell * 4.2, st.cell * 4.2, 0), gui.EASING_OUTQUAD, dur(0.22))
+	gui.animate(flash, "color.w", 0, gui.EASING_INQUAD, dur(0.3), 0, function() gui.delete_node(flash) end)
+	ui.ring(st.fx_layer, cx, cy, st.cell * 4.4, col, dur(0.34))
+	ui.after(dur(0.06), function() ui.ring(st.fx_layer, cx, cy, st.cell * 3.2, ui.WHITE, dur(0.28)) end)
+	ui.burst(st.fx_layer, cx, cy, 14, col, st.cell * 1.6, 30)
+	ui.burst(st.fx_layer, cx, cy, 6, ui.GOLD, st.cell * 1.1, 22)
+	audio.play("hit", 1, 0.7)
+	board_jolt(11)
+	ui.shake_xy(st.shake, 9)
+end
+
+-- Prism: rainbow pulse over the whole board.
+local function prism_wave(cx, cy)
+	local cols = { ui.RED, ui.YELLOW, ui.GREEN, ui.BLUE, ui.PURPLE }
+	for i, c in ipairs(cols) do
+		ui.after(dur(0.04) * (i - 1), function() ui.ring(st.fx_layer, cx, cy, st.board_size * (0.6 + i * 0.16), c, dur(0.36)) end)
+	end
+	ui.flash(st.fx_layer, st.app.vw, st.app.vh, V4(1, 1, 1, 0.18), dur(0.25))
+	audio.play("combo", 0.8, 1.3)
+	board_jolt(8)
+end
+
+local function special_fx(cl, cx, cy, col)
+	if cl.special == "line_h" then line_beam(cx, cy, col, false)
+	elseif cl.special == "line_v" then line_beam(cx, cy, col, true)
+	elseif cl.special == "bomb" then bomb_blast(cx, cy, col)
+	elseif cl.special == "prism" then prism_wave(cx, cy)
+	else
+		ui.ring(st.fx_layer, cx, cy, st.cell * 2.8, ui.WHITE, dur(0.32))
+		ui.shake_xy(st.shake, 8)
+	end
+end
+
 local COMBO_KEYS = { [2] = "COMBO_2", [3] = "COMBO_3", [4] = "COMBO_4" }
 
 local function anim_step(ev, step)
@@ -1430,7 +1517,27 @@ local function anim_step(ev, step)
 		local key = COMBO_KEYS[math.min(4, cascade)]
 		ui.banner(st.fx_layer, i18n.t(key, { n = cascade }), st.board_cx, st.board_cy + st.cell * 0.6, 40 + math.min(4, cascade) * 6, ui.GOLD, dur(0.32))
 		ui.shake_xy(st.shake, 3 + cascade * 2)
-		if cascade >= 3 then audio.play("combo", 0.7, 1 + cascade * 0.05) end
+		board_jolt(math.min(8, 1 + cascade * 2))
+		if cascade >= 3 then
+			audio.play("combo", 0.7, 1 + cascade * 0.05)
+			-- Board halo flares up: the longer the chain, the hotter the glow
+			local hc = cascade >= 4 and V4(1, 0.55, 0.2, 0.7) or V4(1, 0.8, 0.35, 0.5)
+			gui.cancel_animations(st.halo, "color")
+			gui.set_color(st.halo, hc)
+			gui.animate(st.halo, "color.w", 0.12, gui.EASING_OUTQUAD, dur(0.5), 0, function()
+				gui.set_color(st.halo, tint(ui.GOLD, 0.12))
+				local s = st.session
+				if s.status == "play" and s.turn == "player" then
+					gui.animate(st.halo, "color.w", 0.3, gui.EASING_INOUTSINE, 0.8, 0, nil, gui.PLAYBACK_LOOP_PINGPONG)
+				else
+					gui.animate(st.halo, "color.w", 0, gui.EASING_OUTQUAD, 0.25)
+				end
+			end)
+		end
+		if cascade >= 4 then
+			ui.flash(st.fx_layer, st.app.vw, st.app.vh, V4(1, 0.85, 0.5, 0.2), dur(0.3))
+			zoom_punch(1.03)
+		end
 	end
 	-- Clear
 	local cells_by_col = {}
@@ -1470,10 +1577,7 @@ local function anim_step(ev, step)
 				ui.burst(st.fx_layer, cx, cy, 2, ui.WHITE, st.cell * 0.45, 18)
 			end
 
-			if cl.special then
-				ui.ring(st.fx_layer, cx, cy, st.cell * 2.8, ui.WHITE, dur(0.32))
-				ui.shake_xy(st.shake, 8)
-			end
+			if cl.special then special_fx(cl, cx, cy, col) end
 		end)
 	end
 	for _, p in ipairs(step.stones_hit or {}) do
@@ -1578,7 +1682,8 @@ local function anim_step(ev, step)
 			if g then
 				local x, y = cell_pos(f.to_r, f.c)
 				gui.cancel_animations(g.node, "position")
-				gui.animate(g.node, "position", V3(x, y, 0), gui.EASING_OUTBOUNCE, dur(0.22))
+				gui.animate(g.node, "position", V3(x, y, 0), gui.EASING_INQUAD, dur(0.17))
+				if not g.stone then land_squash(g, dur(0.17)) end
 			end
 			st.gems[f.to_r][f.c] = g
 		end
@@ -1588,7 +1693,9 @@ local function anim_step(ev, step)
 			local _, top_y = cell_pos(sp.r + per_col[sp.c], sp.c)
 			local g = make_gem(sp.r, sp.c, sp, top_y)
 			local x, y = cell_pos(sp.r, sp.c)
-			gui.animate(g.node, "position", V3(x, y, 0), gui.EASING_OUTBOUNCE, dur(0.24), (sp.r - 1) * dur(0.01))
+			local delay = (sp.r - 1) * dur(0.012)
+			gui.animate(g.node, "position", V3(x, y, 0), gui.EASING_INQUAD, dur(0.19), delay)
+			if g and g.color then land_squash(g, delay + dur(0.19)) end
 			st.gems[sp.r][sp.c] = g
 		end
 	end)

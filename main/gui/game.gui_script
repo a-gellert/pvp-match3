@@ -144,9 +144,12 @@ end
 
 function app.set_tab(tab)
 	if app.tab == tab and app.screen == "hub" then return end
+	-- hub_view slides the new tab in from the side of the old one (no full-screen fade)
+	app.prev_tab = app.screen == "hub" and app.tab or nil
 	app.tab = tab
 	audio.play("whoosh", 0.5)
-	app.rebuild(true)
+	app.rebuild(app.prev_tab == nil)
+	app.prev_tab = nil
 end
 
 -- Things that pop up when the player arrives in the hub.

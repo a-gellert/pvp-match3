@@ -95,7 +95,10 @@ local function nav_bar(app, cx0, cx1, h)
 		local isz = active and 64 or 50
 		local ic = ui.icon(hit, tab.icon, 0, active and 14 or 10, isz, active and ui.WHITE or V4(0.78, 0.8, 0.88, 1))
 		gui.set_inherit_alpha(ic, false)
-		if active then ui.bob(ic, 4, 0.9) end
+		if active then
+			if app.prev_tab and app.prev_tab ~= tab.id then ui.pop(ic, 0.6, 1, 0.3) end
+			ui.bob(ic, 4, 0.9)
+		end
 		local lbl = ui.label(hit, i18n.t(tab.key), 0, -h / 2 + (active and 22 or 26), active and 19 or 16, active and ui.GOLD or ui.DIM, tw - 14)
 		gui.set_inherit_alpha(lbl, false)
 		ui.button(hit, function() app.set_tab(tab.id) end, { silent = true })
@@ -407,6 +410,17 @@ function M.build(app, parent)
 		VIEWS[app.tab].build(app, content, R, st)
 	end
 	ui.fade_in(content, 0.2)
+	-- Tab switch: content glides in from the side of the previous tab
+	local from, to
+	for i, t in ipairs(TABS) do
+		if t.id == app.prev_tab then from = i end
+		if t.id == app.tab then to = i end
+	end
+	if from and to and from ~= to then
+		local dx = (to > from and 1 or -1) * math.min(140, vw * 0.18)
+		gui.set_position(content, V3(dx, 0, 0))
+		gui.animate(content, "position", V3(0, 0, 0), gui.EASING_OUTCUBIC, 0.26)
+	end
 
 	top_bar(app, vh - top_h / 2 - 4, cx0, cx1)
 	nav_bar(app, land and math.max(cx0, vw / 2 - 560) or cx0, land and math.min(cx1, vw / 2 + 560) or cx1, nav_h)
