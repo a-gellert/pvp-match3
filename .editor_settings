@@ -19,6 +19,17 @@
       :variant "release"
       :with_symbols false
     }
+    :html5 {
+      :architectures #{
+        "wasm-web"
+      }
+      :build_report false
+      :contentless false
+      :liveupdate false
+      :texture_compression "enabled"
+      :variant "release"
+      :with_symbols true
+    }
     :last-bundle-command :bundle-poki
     :output-directory "D:\\DProjects\\pvp-match3\\pvp\\poki"
     :poki {
@@ -46,7 +57,7 @@
             512.0
             0.0
           ]
-          :fov-x 5312.984615384616
+          :fov-x 5788.623238095239
           :fov-y 2252.8
           :mode-2d true
           :position [
@@ -119,12 +130,12 @@
         :code
       ]
       [
-        "/game.project"
-        :form
-      ]
-      [
         "/main/assets/game.atlas"
         :scene
+      ]
+      [
+        "/game.project"
+        :form
       ]
     ]
   }
