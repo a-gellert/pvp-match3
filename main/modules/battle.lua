@@ -135,6 +135,25 @@ local function push(s, ev)
 	end
 end
 
+-- Campaign boss hook: grant one relic for the rest of this battle only.
+function M.grant_relic(s, id)
+	if not (s and config.RELIC_BY_ID[id]) then return false end
+	s.relics = s.relics or {}
+	s.relics[id] = true
+	if id == "iron_skin" then
+		s.player.max_shield = math.floor(s.player.max_shield * 1.25)
+	elseif id == "fury_start" then
+		s.ult.charge = math.min(s.ult.max, s.ult.charge + 50)
+	elseif id == "cross_rocket" then
+		s.board.cross_rocket = true
+	elseif id == "start_bomb" then
+		for _, p in ipairs({ { 4, 4 }, { 3, 4 }, { 4, 3 }, { 5, 4 }, { 4, 5 } }) do
+			if board.place_special(s.board, p[1], p[2], "bomb") then break end
+		end
+	end
+	return true
+end
+
 local function track_steps(s, who, steps)
 	if who ~= "player" then return end
 	local st = s.stats
@@ -177,9 +196,9 @@ local function next_wave(s)
 	if w.squads then s.enemy.squads = build_fighter_squads(w.squads) end
 	s.enemy.statuses = { burn = nil, poison = nil, freeze = 0 }
 	-- Reinforcements arrive; the board (and every prepared special) stays untouched.
-	local heal = math.min(s.player.max_hp - s.player.hp, math.floor(s.player.max_hp * 0.10))
+	local heal = math.min(s.player.max_hp - s.player.hp, math.floor(s.player.max_hp * 0.05))
 	s.player.hp = s.player.hp + heal
-	local sh = math.min(math.max(0, s.player.max_shield - s.player.shield), math.floor(s.player.max_shield * 0.25))
+	local sh = math.min(math.max(0, s.player.max_shield - s.player.shield), math.floor(s.player.max_shield * 0.15))
 	s.player.shield = s.player.shield + sh
 	s.player.moves_left = s.player.max_moves
 	s.turn = "player"
@@ -710,6 +729,20 @@ function M.suggest_move(s)
 	if #moves == 0 then return nil end
 
 	if config.is_blast_mode() then
+		-- Onboarding: the first hint points at the deterministic starter cluster.
+		if s.tutorial and s.board.cfg and s.board.cfg.force_cluster then
+			local fc = s.board.cfg.force_cluster
+			local cells = {}
+			for _, p in ipairs(fc.cells or {}) do cells[#cells + 1] = { r = p[1], c = p[2] } end
+			if #cells >= 2 then
+				return {
+					r = cells[1].r, c = cells[1].c,
+					r1 = cells[1].r, c1 = cells[1].c,
+					r2 = cells[1].r, c2 = cells[1].c,
+					size = #cells, color = fc.color, cells = cells, match_cells = cells,
+				}
+			end
+		end
 		local best, best_n = moves[1], -1
 		for _, m in ipairs(moves) do
 			local n = m.size or (m.cells and #m.cells) or 1

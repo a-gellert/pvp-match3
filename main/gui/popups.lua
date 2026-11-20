@@ -12,6 +12,7 @@ local poki = require "main.modules.poki"
 local i18n = require "main.modules.i18n"
 local audio = require "main.modules.audio"
 local loader = require "main.modules.loader"
+local battle = require "main.modules.battle"
 
 local M = {}
 local V3 = vmath.vector3
@@ -603,8 +604,10 @@ end
 
 -- ---------------------------------------------------------------- gauntlet relic choice
 B.relic = function(app, root, data)
+	local camp = data.campaign == true
 	local p, w, h = panel(root, app, 640, 760, i18n.t("RELIC_TITLE"))
-	ui.label(p, i18n.t("RELIC_SUB", { a = data.step or 1, b = data.total or config.SURVIVAL.battles }), 0, h / 2 - 84, 18, ui.DIM, w - 70, { lines = 2 })
+	local sub_key = camp and "RELIC_BOSS_SUB" or "RELIC_SUB"
+	ui.label(p, i18n.t(sub_key, { a = data.step or 1, b = data.total or config.SURVIVAL.battles }), 0, h / 2 - 84, 18, ui.DIM, w - 70, { lines = 2 })
 	local mx = data.survival_max or progress.hero_hp()
 	local hp = data.survival_hp or (progress.data.survival and progress.data.survival.hp) or mx
 	local bar = ui.bar(p, 0, h / 2 - 132, w - 110, 30, hp / math.max(1, mx), ui.GREEN, { text = hp .. " / " .. mx, text_size = 17 })
@@ -614,8 +617,15 @@ B.relic = function(app, root, data)
 	local top = h / 2 - 182
 	local ch = 138
 	local function take(id)
-		progress.add_survival_relic(id)
 		audio.play("star", 0.9, 1.1)
+		if camp then
+			-- Temporary campaign relic: applies to the remaining waves of this fight only.
+			if app.session then battle.grant_relic(app.session, id) end
+			app.close_popup(true)
+			app.rebuild()
+			return
+		end
+		progress.add_survival_relic(id)
 		app.close_popup(true)
 		app.start_survival()
 	end
@@ -636,7 +646,7 @@ B.relic = function(app, root, data)
 	end
 	ui.btn(p, "btn_dark", 0, -h / 2 + 62, w - 140, 64, i18n.t("RELIC_SKIP"), 22, function()
 		app.close_popup(true)
-		app.start_survival()
+		if not camp then app.start_survival() end
 	end)
 end
 
@@ -1134,8 +1144,12 @@ function M.on_back(app)
 		app.close_popup(true)
 		app.after_new_squad()
 	elseif kind == "relic" then
-		app.close_popup(true)
-		app.start_survival()
+		if app.popup and app.popup.data and app.popup.data.campaign then
+			app.close_popup(true)
+		else
+			app.close_popup(true)
+			app.start_survival()
+		end
 	elseif kind == "language" then
 		app.open_popup(app.popup.data and app.popup.data.from or "settings")
 	elseif kind == "pvp_search" or kind == "chest" then

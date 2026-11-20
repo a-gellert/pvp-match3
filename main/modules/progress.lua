@@ -22,7 +22,7 @@ local function default_data()
 	end
 	return {
 		version = M.VERSION,
-		gold = 60,
+		gold = 100,
 		diamonds = 30,
 		prestige = 0,
 		max_prestige = 0,
@@ -660,6 +660,10 @@ function M.apply_battle_result(opts)
 	if won then
 		d.stats.wins = (d.stats.wins or 0) + 1
 		quests.on_event(d, "wins", 1)
+		-- Second victory: switch the new player to the fast battle pace automatically.
+		if d.stats.wins == 2 and (d.battle_speed or 1) < 2 then
+			d.battle_speed = 2
+		end
 		if is_pvp then
 			d.stats.pvp_wins = (d.stats.pvp_wins or 0) + 1
 			quests.on_event(d, "pvp_wins", 1)
@@ -680,9 +684,12 @@ function M.apply_battle_result(opts)
 			end
 			if not d.onboarding_done then
 				if opts.stage_id == 1 and first_clear then
-					-- Onboarding: instant militia cards so an upgrade awaits once the Hub opens after Battle 3.
-					d.cards.red_militia.count = d.cards.red_militia.count + 2
-					bonus_cards = { { id = "red_militia", count = 2 } }
+					-- Onboarding: instant starter cards so 1-2 upgrades await in the Hub after Battle 3.
+					bonus_cards = {}
+					for _, id in ipairs({ "red_militia", "yellow_archers", "purple_cultists" }) do
+						d.cards[id].count = d.cards[id].count + 2
+						bonus_cards[#bonus_cards + 1] = { id = id, count = 2 }
+					end
 				end
 				if opts.stage_id >= config.ONBOARDING_BATTLES and d.onboarding_step == 0 then
 					d.onboarding_step = 1
@@ -700,6 +707,9 @@ function M.apply_battle_result(opts)
 			chest_rarity = opts.chest or "wood"
 			chest_slot = M.add_chest(chest_rarity)
 			chest_boost = M.boost_active_chest(config.CHEST_WIN_CUT)
+			if chest_boost then
+				d.chest_toast = { slot = chest_boost.slot, cut = chest_boost.cut, until_t = quests.now() + 6 }
+			end
 		end
 	end
 	M.save()
@@ -834,6 +844,29 @@ function M.survival_fail()
 end
 
 -- ---------------------------------------------------------------- badges (red dots)
+-- ---------------------------------------------------------------- progressive disclosure
+-- The Hub grows with the player: every tab opens after a win milestone so the first
+-- session is not a wall of icons. `home` and `cards` exist from the first Hub visit.
+function M.tab_unlocked(id)
+	if id == "home" then return true end
+	local wins = M.data.stats.wins or 0
+	if id == "cards" then return wins >= 3 or M.data.onboarding_done == true end
+	if id == "tower" then return wins >= 4 end
+	if id == "map" or id == "quests" then return wins >= 5 end
+	if id == "shop" then return wins >= 6 end
+	return true
+end
+
+-- PvP and the Daily Trial open together with the Shop (6 wins).
+function M.pvp_unlocked()
+	return (M.data.stats.wins or 0) >= 6
+end
+
+-- One-time hand pointer on the freshly unlocked Tower tab (free Gauntlet run).
+function M.tower_hint_ready()
+	return M.tab_unlocked("tower") and not M.data.tower_hint_seen
+end
+
 function M.badges()
 	local d = M.data
 	local b = { cards = 0, quests = 0, shop = 0, map = 0, home = 0 }

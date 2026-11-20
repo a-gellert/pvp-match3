@@ -44,10 +44,11 @@ local BIOME_FACES = {
 -- Hand-made onboarding stages (biome 1). HP / moves / levels come from the scaling model below
 -- unless set explicitly.
 local HAND = {
-	{ name_key = "ENEMY_SCOUT", face = "face_goblin", hp = 135, moves = 1, tutorial = true,
-	  squads = { red = "red_militia", yellow = "yellow_archers", purple = "purple_cultists" } },
-	{ name_key = "ENEMY_RAIDER", face = "face_goblin", moves = 1,
-	  squads = { red = "red_spearmen", yellow = "yellow_falconer", purple = "purple_imps" } },
+	{ name_key = "ENEMY_SCOUT", face = "face_goblin", hp = 105, moves = 1, tutorial = true,
+	  squads = { red = "red_spearmen", yellow = "yellow_falconer", purple = "purple_imps" },
+	  board_cfg = { force_cluster = { color = "red", cells = { { 3, 3 }, { 3, 4 }, { 3, 5 }, { 4, 3 }, { 4, 4 } } } } },
+	{ name_key = "ENEMY_RAIDER", face = "face_goblin", hp = 125, moves = 1,
+	  squads = { red = "red_wolves", yellow = "yellow_crossbow", purple = "purple_necro" } },
 	{ name_key = "ENEMY_SHAMAN", face = "face_goblin", moves = 2,
 	  squads = { red = "red_pyromancer", yellow = "yellow_archers", purple = "purple_cultists" } },
 	{ name_key = "ENEMY_WARCHIEF", face = "face_orc",
@@ -74,7 +75,9 @@ function M.expected_build(n)
 end
 
 M.HP_K = 0.66
-M.BOSS_K = 1.12
+M.BOSS_K = 1.20
+-- Per-boss tuning from the headless sim: keeps every boss in the 35-65% band.
+M.BOSS_TUNE = { [6] = 1.35, [12] = 1.15, [18] = 0.82, [24] = 1.30, [30] = 1.40 }
 -- Gentle onboarding ramp: early enemies get less HP
 local function hp_ramp(n)
 	if n <= 6 then return 0.62 + n * 0.02 end
@@ -142,12 +145,16 @@ local function gen_stage(n, hand)
 	local faces = BIOME_FACES[biome]
 	local chest = boss and "royal" or ((in_biome % 3 == 0) and "silver" or "wood")
 	if boss and n == M.STAGES_PER_BIOME then chest = "silver" end
+	local pre = hp_ramp(n)
+	-- Valley after a boss: the first stage of each biome is a breather (-15% enemy HP).
+	if not boss and in_biome == 1 and n > 1 then pre = pre * 0.85 end
+	-- Extra moves per turn are a big power spike: scale late enemy HP with them.
+	local move_k = 1 + 0.06 * math.max(0, moves - 5)
 	local st = {
 		name_key = boss and BOSS_KEYS[biome] or ENEMY_KEYS[r:int(5, 12)],
 		face = boss and faces[3] or faces[r:int(1, 2)],
-		hp = math.floor(hp * M.HP_K * hp_ramp(n) * (boss and M.BOSS_K or 1) + 0.5),
-		moves = math.max(1, math.min(6, moves)),
-		diff = n <= 6 and 1 or (n < 14 and 2 or 3),
+		hp = math.floor(hp * M.HP_K * pre * move_k * (boss and M.BOSS_K or 1) * ((boss and M.BOSS_TUNE[n]) or 1) + 0.5),
+		moves = math.max(1, math.min(6, moves)),		diff = n <= 6 and 1 or (n < 14 and 2 or 3),
 		chest = chest,
 		gold = stage_gold(n),
 		squads = squads,
@@ -164,13 +171,13 @@ local function gen_stage(n, hand)
 	if boss then
 		local wc = (n == 24 or n == 30) and 3 or ((n == 6 or n == 12 or n == 18) and 2 or 0)
 		if wc > 0 then
-			local total = math.floor(st.hp * (wc == 3 and 1.65 or 1.40) + 0.5)
+			local total = math.floor(st.hp * (wc == 3 and 2.00 or 1.55) + 0.5)
 			local fracs = wc == 3 and { 0.32, 0.33, 0.35 } or { 0.45, 0.55 }
 			local waves = {}
 			for i = 1, wc do
 				waves[i] = {
 					hp = math.floor(total * fracs[i] + 0.5),
-					moves = math.max(1, st.moves - (wc - i)),
+					moves = math.max(1, st.moves - (wc - i)) + (i == wc and 1 or 0),
 					squads = st.squads,
 					name_key = st.name_key,
 					face = st.face,
@@ -180,6 +187,15 @@ local function gen_stage(n, hand)
 			st.hp = total
 			st.waves = waves
 		end
+	elseif n >= 4 then
+		-- From stage 4 every fight has reinforcements: two waves, same board, specials carried.
+		local total = math.floor(st.hp * 1.12 + 0.5)
+		local first = math.floor(total * 0.55 + 0.5)
+		st.hp = total
+		st.waves = {
+			{ hp = first, moves = st.moves, squads = st.squads, name_key = st.name_key, face = st.face },
+			{ hp = total - first, moves = st.moves, squads = st.squads, name_key = st.name_key, face = st.face },
+		}
 	end
 	return st
 end

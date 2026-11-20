@@ -80,7 +80,7 @@ function M.commander_hp(cmd_lvl, moves, prestige)
 end
 
 M.MIN_MOVES = 2
-M.START_MOVES = 2
+M.START_MOVES = 3
 M.MAX_MOVES = 7
 M.ONBOARDING_BATTLES = 3
 -- Gold cost to upgrade max_moves from (n-1) to n
@@ -94,7 +94,7 @@ M.STREAK_GOLD_BONUS = 0.15 -- +15% gold per PvP win in a row
 M.STREAK_MAX = 5
 
 -- First 4 earned chests open immediately or in seconds during the first Poki session.
-M.EARLY_CHEST_DURATIONS = { 0, 0, 0, 20 }
+M.EARLY_CHEST_DURATIONS = { 0, 0, 10, 20 }
 
 M.MAX_CHEST_SLOTS = 4
 M.CHEST_ORDER = { "wood", "silver", "royal" }
@@ -129,7 +129,7 @@ M.CHESTS = {
 	},
 	royal = {
 		id = "royal",
-		duration = 600,       -- 10 minutes
+		duration = 420,       -- 7 minutes (web session friendly)
 		gold_min = 280,
 		gold_max = 420,
 		cards_min = 14,
@@ -178,7 +178,7 @@ M.BOOSTERS = {
 }
 M.BOOSTER_ORDER = { "shuffle", "hammer", "extra_move" }
 
-M.FIRST_AD_LEVEL = 4
+M.FIRST_AD_LEVEL = 5
 
 -- Campaign stars: remaining HP ratio needed for 2 and 3 stars (1 star = any win).
 M.STAR_HP = { 0.0, 0.45, 0.75 }

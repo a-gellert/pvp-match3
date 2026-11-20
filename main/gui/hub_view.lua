@@ -34,7 +34,8 @@ local st = {}
 local function signature()
 	local d = progress.data
 	local parts = { tostring(progress.free_chest_remaining() <= 0), tostring(quests.login_pending(d)), tostring(d.daily and d.daily.day),
-		tostring(progress.survival_active()), tostring(progress.survival_step()), tostring(d.survival and d.survival.best) }
+		tostring(progress.survival_active()), tostring(progress.survival_step()), tostring(d.survival and d.survival.best),
+		tostring(d.chest_toast and d.chest_toast.slot or 0) }
 	for i = 1, config.MAX_CHEST_SLOTS do
 		local ch = d.chests[i]
 		parts[#parts + 1] = ch and (ch.rarity .. tostring(ch.unlocking) .. tostring(progress.chest_remaining(i) <= 0)) or "-"
@@ -78,10 +79,14 @@ end
 
 local function nav_bar(app, cx0, cx1, h)
 	local badges = progress.badges()
+	local tabs = {}
+	for _, tab in ipairs(TABS) do
+		if progress.tab_unlocked(tab.id) then tabs[#tabs + 1] = tab end
+	end
 	local w = cx1 - cx0
 	ui.slice(st.root, "panel_stone", (cx0 + cx1) / 2, h / 2 - 6, w + 20, h + 14, ui.WHITE, 22)
-	local tw = w / #TABS
-	for i, tab in ipairs(TABS) do
+	local tw = w / #tabs
+	for i, tab in ipairs(tabs) do
 		local x = cx0 + (i - 0.5) * tw
 		local active = app.tab == tab.id
 		local holder = ui.pane(st.root, x, h / 2)
@@ -104,11 +109,12 @@ local function nav_bar(app, cx0, cx1, h)
 		ui.button(hit, function() app.set_tab(tab.id) end, { silent = true })
 		local cnt = badges[tab.id] or 0
 		local tut_hand = tab.id == "cards" and not active and progress.data.onboarding_step == 2
-		if cnt > 0 and not active and not tut_hand then
+		local tower_hand = tab.id == "tower" and not active and progress.tower_hint_ready()
+		if cnt > 0 and not active and not tut_hand and not tower_hand then
 			local bd = ui.badge(hit, isz / 2 + 4, isz / 2, cnt, 30)
 			gui.set_inherit_alpha(bd, false)
 		end
-		if tut_hand then
+		if tut_hand or tower_hand then
 			local hand = ui.box(holder, "icon_hand", 22, 30, 52, 52)
 			ui.pulse(hand, 1.18, 0.45)
 		end
@@ -299,26 +305,27 @@ local function build_home(app, parent, R)
 	local land = app.orient == "landscape"
 	local stage_n = math.min(campaign.COUNT, d.max_stage_unlocked or 1)
 	local function battle_buttons(cx, y, w)
-		local bw = (w - 14) / 2
-		local pvp_x = cx - bw / 2 - 7
-		local camp_x = cx + bw / 2 + 7
-		ui.btn(parent, "btn_gold", pvp_x, y, bw, 108, i18n.t("BATTLE"), 34, function() app.start_pvp_search() end,
-			{ icon = "icon_pvp", icon_size = 64, pulse = true })
-		if (d.streak or 0) >= 2 then
-			local fl = ui.box(parent, "icon_fire", pvp_x + bw / 2 - 28, y + 42, 48, 48)
-			ui.pulse(fl, 1.15, 0.35)
-			ui.text(parent, "x" .. d.streak, pvp_x + bw / 2 - 28, y + 28, 18, ui.WHITE)
-		end
+		-- One primary CTA: the next campaign stage. PvP stays a compact mode switch
+		-- next to it (unlocked with the Shop at 6 wins).
 		local stg = campaign.get_stage(stage_n)
-		local cn = ui.btn(parent, stg.boss and "btn_crimson" or "btn_purple", camp_x, y, bw, 108,
-			i18n.t("CAMPAIGN_NEXT", { n = stage_n }), 26, function()
-				app.open_popup("stage", { id = stage_n })
-			end, { icon = stg.face, icon_size = 64 })
-		if not d.onboarding_done then gui.set_enabled(cn, false) end
-		if (d.streak or 0) >= 2 then
-			local fl2 = ui.box(parent, "icon_fire", camp_x + bw / 2 - 28, y + 42, 48, 48)
-			ui.pulse(fl2, 1.15, 0.35)
-			ui.text(parent, "x" .. d.streak, camp_x + bw / 2 - 28, y + 28, 18, ui.WHITE)
+		local pvp = progress.pvp_unlocked()
+		local pw = pvp and math.min(116, w * 0.22) or 0
+		local main_w = w - (pvp and (pw + 10) or 0)
+		local main_x = cx - (pvp and (pw + 10) / 2 or 0)
+		local b = ui.btn(parent, stg.boss and "btn_crimson" or "btn_gold", main_x, y, main_w, 108,
+			i18n.t("BATTLE"), 32, function() app.start_campaign(stage_n) end,
+			{ icon = stg.face, icon_size = 64, pulse = true })
+		if not d.onboarding_done then gui.set_enabled(b, false) end
+		if pvp then
+			local px = cx + w / 2 - pw / 2
+			local pbn = ui.btn(parent, "btn_purple", px, y, pw, 108, "", 16, function() app.start_pvp_search() end,
+				{ icon = "icon_pvp", icon_size = 46 })
+			ui.label(pbn, i18n.t("PVP_SHORT"), 0, -34, 15, ui.WHITE, pw - 10, { plain = true })
+			if (d.streak or 0) >= 2 then
+				local fl = ui.box(pbn, "icon_fire", pw / 2 - 4, 38, 34, 34)
+				ui.pulse(fl, 1.15, 0.35)
+				ui.text(fl, "x" .. d.streak, 0, -11, 13, ui.WHITE)
+			end
 		end
 	end
 
@@ -389,6 +396,7 @@ end
 
 -- ---------------------------------------------------------------- build
 function M.build(app, parent)
+	if not progress.tab_unlocked(app.tab or "home") then app.tab = "home" end
 	local vw, vh = app.vw, app.vh
 	local land = app.orient == "landscape"
 	st = { app = app, root = ui.pane(parent, 0, 0), timers = {}, tick = 0, sig = signature() }
@@ -415,8 +423,7 @@ function M.build(app, parent)
 	for i, t in ipairs(TABS) do
 		if t.id == app.prev_tab then from = i end
 		if t.id == app.tab then to = i end
-	end
-	if from and to and from ~= to then
+	end	if from and to and from ~= to then
 		local dx = (to > from and 1 or -1) * math.min(140, vw * 0.18)
 		gui.set_position(content, V3(dx, 0, 0))
 		gui.animate(content, "position", V3(0, 0, 0), gui.EASING_OUTCUBIC, 0.26)
@@ -442,6 +449,13 @@ function M.update(dt)
 	if st.tick < 0.5 then return end
 	st.tick = 0
 	for _, t in ipairs(st.timers) do gui.set_text(t.node, t.fn()) end
+	local toast = progress.data.chest_toast
+	if toast and quests.now() >= (toast.until_t or 0) then
+		if st.app.popup then return end
+		progress.data.chest_toast = nil
+		st.app.rebuild()
+		return
+	end
 	local v = VIEWS[st.app.tab]
 	if v and v.tick then v.tick() end
 	local sig = signature()

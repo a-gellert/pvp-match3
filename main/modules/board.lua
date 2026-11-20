@@ -422,6 +422,20 @@ function M.new(rng_inst, cfg)
 		if #M.valid_moves(b.grid) == 0 then M.shuffle(b) end
 	end
 
+	-- Deterministic starter cluster (onboarding): paint these cells after generation so
+	-- the very first tap already spawns a line gem. Hazards are applied below and skip
+	-- specials, so the cluster survives the board setup.
+	if cfg and cfg.force_cluster then
+		local fc = cfg.force_cluster
+		local color = fc.color or "red"
+		for _, p in ipairs(fc.cells or {}) do
+			local g = b.grid[p[1]] and b.grid[p[1]][p[2]]
+			if g and not g.hole and not g.stone then
+				b.grid[p[1]][p[2]] = { color = color }
+			end
+		end
+	end
+
 	if cfg then
 		if (cfg.empowered or 0) > 0 then
 			local cands = {}

@@ -2,9 +2,10 @@
 
 Casual dark-fantasy **Match-3 battler** for [Poki](https://poki.com/), made with [Defold](https://defold.com/) and the [Druid](https://github.com/Insality/druid) UI library. Portrait (mobile) and landscape (desktop) layouts adapt to any aspect ratio.
 
-- 7×7 board shared with the enemy, 1–7 moves per turn, special gems, cascades and squad rune skills.
-- 18 squads (Clash Royale–style cards and upgrades), 30-stage campaign in 5 biomes with stars and bosses, PvP ladder with 6 leagues and a 40-step prestige road.
-- Daily Trial (a new boss every day with a win streak), daily quests, 7-day login calendar, free gift every 4 hours, daily shop deals, chest slots with timers.
+- 7×7 board shared with the enemy in **tap-to-blast** mode (Toon Blast style clusters; classic swap mode is one flag away), 3–7 moves per turn, special gems, cascades and squad rune skills.
+- 21 squads (7 per element, Clash Royale–style cards and upgrades), 30-stage campaign in 5 biomes with multi-wave bosses, stars, PvP ladder with 6 leagues and a 40-step prestige road.
+- Daily Trial (a new boss every day with a win streak), Endless Gauntlet (5 fights + relics), daily quests, 7-day login calendar, free gift every 4 hours, daily shop deals, chest slots with web-friendly timers (0s / 10s / 2m / 7m; every win cuts 45s off the active chest).
+- Progressive-disclosure hub: Battle + Squads after the first 3 onboarding fights, then Tower, Map/Quests and finally Shop + PvP.
 - 10 Poki locales: English, Spanish, Portuguese (BR), Russian, Turkish, Polish, German, French, Italian and Dutch. The language is taken from `PokiSDK.getLanguage()` on the first run and can be changed in Settings.
 
 Design and architecture: [docs/DESIGN_DOC.md](docs/DESIGN_DOC.md). Rules for contributors and agents: [AGENTS.md](AGENTS.md).
@@ -45,4 +46,4 @@ node tools/web_smoke.js "bundle/web/GemVanguard" out --size=405x720 --steps="wai
 node tools/web_smoke.js "bundle/web/GemVanguard" out --screen=language --lang=de --size=540x960
 ```
 
-`--screen` jumps to a debug state (`home`, `cards`, `map`, `shop`, `quests`, `battle`, `pvp`, `chest`, `win`, `road`, `stage`, `trial`, `trial_battle`, `trial_win`, `settings`, `language`); `--lang` forces a locale. The script prints the number of Lua/JS errors seen in the console.
+`--screen` jumps to a debug state (`home`, `hub_early`, `cards`, `map`, `shop`, `quests`, `tower`, `battle`, `wave`, `boss_relic`, `pvp`, `chest`, `win`, `road`, `stage`, `trial`, `trial_battle`, `trial_win`, `relic`, `relics_ult`, `survival`, `settings`, `language`, `sim`); `--lang` forces a locale. The script prints the number of Lua/JS errors seen in the console; `--cfg=pvp.poki_debug=1` traces the Poki lifecycle and `--cfg=pvp.autoplay=1` plays the board through the normal input path.

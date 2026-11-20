@@ -6,6 +6,7 @@ return {
 	CAMPAIGN = "Campagna",
 	CAMPAIGN_NEXT = "Tappa {n}",
 	PVP = "Battaglia PvP",
+	PVP_SHORT = "PvP",
 	BATTLE = "BATTAGLIA",
 	SHOP = "Negozio",
 	FIGHT = "Combatti!",
@@ -340,4 +341,5 @@ return {
 	SURVIVAL_BATTLE_FMT = "Gauntlet {a}/{b}",
 	SURVIVAL_OVER = "CORSA FINITA",
 	SURVIVAL_REACHED_FMT = "Battaglie vinte: {n}",
+	RELIC_BOSS_SUB = "Il boss è ferito! Scegli una reliquia per il resto della battaglia.",
 }

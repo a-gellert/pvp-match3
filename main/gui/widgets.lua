@@ -3,6 +3,7 @@ local ui = require "main.gui.ui"
 local config = require "main.modules.config"
 local squads = require "main.modules.squads"
 local progress = require "main.modules.progress"
+local quests = require "main.modules.quests"
 local i18n = require "main.modules.i18n"
 
 local M = {}
@@ -107,6 +108,14 @@ function M.chest_slot(parent, app, i, x, y, w, h)
 	local d = progress.data
 	local slot = d.chests[i]
 	local box = ui.slice(parent, "panel_dark", x, y, w, h, ui.WHITE, 18)
+	-- Victory speed-up toast (-45s) floats over the chest for a few seconds.
+	local toast = d.chest_toast
+	if toast and toast.slot == i and quests.now() < (toast.until_t or 0) then
+		local tag = ui.slice(box, "btn_crimson", 0, h / 2 - 16, 92, 32, ui.WHITE, 12)
+		ui.text(tag, "-" .. tostring(toast.cut or config.CHEST_WIN_CUT) .. "s", 0, 2, 17, ui.WHITE)
+		ui.pulse(tag, 1.14, 0.35)
+		ui.expire(tag, nil, 6)
+	end
 	if not slot then
 		gui.set_alpha(box, 0.7)
 		ui.box(box, "chest_wood", 0, 10, math.min(w - 30, 70), math.min(w - 30, 70), V4(0.2, 0.22, 0.3, 0.6))

@@ -6,6 +6,7 @@ return {
 	CAMPAIGN = "Sefer",
 	CAMPAIGN_NEXT = "Aşama {n}",
 	PVP = "PvP Savaşı",
+	PVP_SHORT = "PvP",
 	BATTLE = "SAVAŞ",
 	SHOP = "Mağaza",
 	FIGHT = "Savaş!",
@@ -340,4 +341,5 @@ return {
 	SURVIVAL_BATTLE_FMT = "Gauntlet {a}/{b}",
 	SURVIVAL_OVER = "KOŞU BİTTİ",
 	SURVIVAL_REACHED_FMT = "Kazanılan savaş: {n}",
+	RELIC_BOSS_SUB = "Patron yaralandı! Dövüşün kalanı için bir yadigâr seç.",
 }

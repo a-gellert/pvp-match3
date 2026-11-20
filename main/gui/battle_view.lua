@@ -23,10 +23,11 @@ local LANE_OF = { red = true, yellow = true, purple = true }
 local SIDES = { "player", "enemy" }
 
 local SPEC_SPRITE = { line_h = "spec_line_h", line_v = "spec_line_v", bomb = "spec_bomb" }
-local STEP_DUR = 0.40
+local STEP_DUR = 0.36
 local AI_DELAY = 0.09
-local ANIM_FAST = 0.625 -- battle pace: 50% slower than the previous 1.25x web polish
-local HINT_DELAY = 2.5
+local ANIM_FAST = 0.68 -- battle pace: ~15% faster than the 1.25x web polish
+local AI_TURN_SPEED = 1.38 -- enemy turns resolve ~35-40% faster than the player's
+local HINT_DELAY = 2.2
 local DMG_COLOR = V4(1, 0.93, 0.86, 1)
 local DEAD_COLOR = V4(0.36, 0.38, 0.46, 0.6)
 
@@ -38,7 +39,7 @@ local function speed_mul()
 	if st.rush_t and st.rush_t > 0 then
 		base = base * 2.0
 	end
-	return base * ANIM_FAST
+	return base * ANIM_FAST * (st.ai_fast and AI_TURN_SPEED or 1)
 end
 
 local function dur(d)
@@ -1336,6 +1337,8 @@ local function schedule_effect(ev, t)
 		return t + dur(0.7)
 	elseif k == "wave" then
 		at(t, function()
+			local s = st.session
+			if not s then return end
 			audio.play("levelup")
 			for _, col in ipairs(LANES) do rise_unit("enemy", col) end
 			for _, side in ipairs(SIDES) do
@@ -1344,14 +1347,30 @@ local function schedule_effect(ev, t)
 			end
 			set_bars(false)
 			ui.flash(st.fx_layer, st.app.vw, st.app.vh, V4(0.62, 0.3, 0.82, 0.3), dur(0.35))
-			ui.banner(st.fx_layer, i18n.t("WAVE_BANNER", { a = ev.wave, b = ev.total }), st.arena_cx, st.arena_cy, 52, ui.PURPLE, dur(1.1))
+			ui.banner(st.fx_layer, i18n.t("WAVE_BANNER", { a = ev.wave, b = ev.total }), st.arena_cx, st.arena_cy, 52, ui.PURPLE, dur(0.8))
 			ui.ring(st.fx_layer, st.bars.player.x, st.bars.player.y, 170, ui.GREEN, dur(0.45))
 			if (ev.heal or 0) > 0 then
 				ui.float_text(st.fx_layer, "+" .. ev.heal, st.bars.player.x, st.bars.player.y + 42, 26, ui.GREEN, 48)
 			end
 			M.refresh_hud()
+			-- First boss (end of biome 1): the wounded boss offers a temporary relic
+			-- before the final wave, ~2 minutes into the run.
+			if s.mode == "campaign" and s.stage_id == campaign.STAGES_PER_BIOME
+				and ev.wave == 2 and not s.boss_relic_offered then
+				s.boss_relic_offered = true
+				local app_ref = st.app
+				ui.after(0.35, function()
+					if s.status == "play" then
+						app_ref.queue_popup("relic", {
+							campaign = true, step = ev.wave, total = ev.total,
+							relic_choices = progress.propose_relics(3),
+							survival_hp = s.player.hp, survival_max = s.player.max_hp,
+						})
+					end
+				end)
+			end
 		end)
-		return t + dur(0.95)
+		return t + dur(0.75)
 	elseif k == "revive" then		at(t, function()
 			audio.play("levelup")
 			for _, col in ipairs(LANES) do rise_unit("player", col) end
@@ -1756,6 +1775,9 @@ function M.process()
 	local evs = s.events
 	if #evs == 0 then return end
 	s.events = {}
+	-- Enemy turns animate faster: every dur() inside this sequence (including the
+	-- callbacks scheduled below) reads the flag until the board unlocks again.
+	st.ai_fast = (evs[1] and evs[1].who == "enemy") or nil
 	clear_hint()
 	clear_target()
 	clear_damage_preview()
@@ -1846,6 +1868,7 @@ function M.process()
 	st.busy = true
 	at(t + dur(0.16), function()
 		st.busy = false
+		st.ai_fast = nil
 		sync_board()
 		sync_disp()
 		M.refresh_hud()
@@ -2301,12 +2324,38 @@ function M.touch_start(x, y)
 end
 
 function M.touch_drag(total_x, total_y)
-	if config.is_blast_mode() then return end
 	local d = st.drag
 	if not d or d.done or not can_act() then return end
 	local th = st.cell * 0.25
 	if math.abs(total_x) < th and math.abs(total_y) < th then return end
 	d.done = true
+
+	-- Blast mode: players coming from Match-3 expect a swipe to work. Activate the
+	-- cluster under the finger; if that cell is not playable, try the neighbour the
+	-- swipe points at (so a sloppy swipe never dies silently).
+	if config.is_blast_mode() then
+		local grid = st.session.board.grid
+		local function playable(r, c)
+			local g = grid[r] and grid[r][c]
+			if not (g and not g.hole and not g.stone and not g.ice and not g.chains) then return false end
+			return g.special ~= nil or #board.find_cluster(grid, r, c) >= 2
+		end
+		local r, c = d.r, d.c
+		if not playable(r, c) then
+			local nr, nc = r, c
+			if math.abs(total_x) > math.abs(total_y) then
+				nc = nc + (total_x > 0 and 1 or -1)
+			else
+				nr = nr + (total_y > 0 and 1 or -1)
+			end
+			if nr >= 1 and nr <= N and nc >= 1 and nc <= N then r, c = nr, nc end
+		end
+		local g = st.gems[r] and st.gems[r][c]
+		if g then gui.set_scale(g.node, V3(1, 1, 1)) end
+		try_tap(r, c)
+		return
+	end
+
 	local nr, nc = d.r, d.c
 	if math.abs(total_x) > math.abs(total_y) then
 		nc = nc + (total_x > 0 and 1 or -1)
@@ -2327,7 +2376,8 @@ function M.touch_end()
 	if g and g.node then pcall(gui.animate, g.node, "scale", V3(1, 1, 1), gui.EASING_OUTBACK, 0.12) end
 
 	if config.is_blast_mode() then
-		try_tap(d.r, d.c)
+		-- A drag already activated its cluster in touch_drag; tap otherwise.
+		if not d.done then try_tap(d.r, d.c) end
 		clear_target()
 		return
 	end

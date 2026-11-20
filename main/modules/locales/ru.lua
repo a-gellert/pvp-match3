@@ -7,6 +7,7 @@ return {
 	CAMPAIGN = "Кампания",
 	CAMPAIGN_NEXT = "Этап {n}",
 	PVP = "PvP Бой",
+	PVP_SHORT = "PvP",
 	BATTLE = "БИТВА",
 	SHOP = "Магазин",
 	FIGHT = "В бой!",
@@ -341,4 +342,5 @@ return {
 	SURVIVAL_BATTLE_FMT = "Испытание {a}/{b}",
 	SURVIVAL_OVER = "ЗАБЕГ ОКОНЧЕН",
 	SURVIVAL_REACHED_FMT = "Пройдено боёв: {n}",
+	RELIC_BOSS_SUB = "Босс ранен! Выберите реликвию до конца боя.",
 }

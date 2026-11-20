@@ -6,6 +6,7 @@ return {
 	CAMPAIGN = "Campagne",
 	CAMPAIGN_NEXT = "Etappe {n}",
 	PVP = "PvP-gevecht",
+	PVP_SHORT = "PvP",
 	BATTLE = "GEVECHT",
 	SHOP = "Winkel",
 	FIGHT = "Vechten!",
@@ -340,4 +341,5 @@ return {
 	SURVIVAL_BATTLE_FMT = "Gauntlet {a}/{b}",
 	SURVIVAL_OVER = "RUN VOORBIJ",
 	SURVIVAL_REACHED_FMT = "Gevechten voltooid: {n}",
+	RELIC_BOSS_SUB = "De baas is gewond! Kies een reliek voor de rest van het gevecht.",
 }

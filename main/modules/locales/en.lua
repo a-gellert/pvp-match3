@@ -7,6 +7,7 @@ return {
 	CAMPAIGN = "Campaign",
 	CAMPAIGN_NEXT = "Stage {n}",
 	PVP = "PvP Battle",
+	PVP_SHORT = "PvP",
 	BATTLE = "BATTLE",
 	SHOP = "Shop",
 	FIGHT = "Fight!",
@@ -341,4 +342,5 @@ return {
 	SURVIVAL_BATTLE_FMT = "Gauntlet {a}/{b}",
 	SURVIVAL_OVER = "RUN OVER",
 	SURVIVAL_REACHED_FMT = "Battles cleared: {n}",
+	RELIC_BOSS_SUB = "The boss is wounded! Pick a relic for the rest of the fight.",
 }

@@ -7,8 +7,18 @@ local M = {}
 local gameplay = false
 local ad_active = false
 
--- Commercial breaks start after the 3 onboarding battles (Poki rate-limits them on its side too).
-M.FIRST_BREAK_LEVEL = 4
+-- `--cfg=pvp.poki_debug=1` traces the Poki lifecycle in the web smoke test.
+local function trace(msg)
+	local s = rawget(_G, "sys")
+	if s and s.get_config_int and s.get_config_int("pvp.poki_debug", 0) == 1 then
+		print("[POKI] " .. msg)
+	end
+end
+
+-- Commercial breaks start after the 4 onboarding battles and then at most once every 3 battles.
+-- Early retention matters more than a break on battle 4 (Poki rate-limits them on its side too).
+M.FIRST_BREAK_LEVEL = 5
+M.BREAK_EVERY = 3
 
 local function set_ad(active)
 	ad_active = active
@@ -34,6 +44,7 @@ end
 function M.gameplay_start()
 	if gameplay or ad_active then return end
 	gameplay = true
+	trace("gameplay_start")
 	local s = sdk()
 	if s and s.gameplay_start then s.gameplay_start() end
 end
@@ -41,6 +52,7 @@ end
 function M.gameplay_stop()
 	if not gameplay then return end
 	gameplay = false
+	trace("gameplay_stop")
 	local s = sdk()
 	if s and s.gameplay_stop then s.gameplay_stop() end
 end
@@ -66,12 +78,20 @@ function M.measure(category, what, action)
 	if s and s.measure then pcall(s.measure, category, tostring(what), action) end
 end
 
+-- Should the battle that is about to start (1-based) show an interstitial?
+function M.break_due(level)
+	level = level or 1
+	if level < M.FIRST_BREAK_LEVEL then return false end
+	return (level - M.FIRST_BREAK_LEVEL) % (M.BREAK_EVERY or 1) == 0
+end
+
 function M.commercial_break(level, on_done)
 	local s = sdk()
-	if not (s and s.commercial_break) or (level or 1) < M.FIRST_BREAK_LEVEL then
+	if not (s and s.commercial_break) or not M.break_due(level) then
 		if on_done then on_done() end
 		return
 	end
+	trace("commercial_break level=" .. tostring(level))
 	M.gameplay_stop()
 	set_ad(true)
 	local done = false
